@@ -2,102 +2,37 @@ Shader "Custom/Vit/GrassWind_URP"
 {
     Properties
     {
-        // ================================================================
-        // Common
-        // ================================================================
         [MainTexture] _BaseMap ("Base Map", 2D) = "white" {}
         [MainColor] _BaseColor ("Base Color", Color) = (1,1,1,1)
-        _Cutoff ("Alpha Cutoff", Range(0,1)) = 0.328
+        _Cutoff ("Alpha Cutoff", Range(0,1)) = 0
 
         [NoScaleOffset] _WindTexture ("Wind Texture", 2D) = "gray" {}
-        _WindSpeed ("Wind Speed", Range(0,10)) = 4.67
-        _WindStrength ("Wind Strength", Range(0,1)) = 0.22
-        _WindDirection ("Wind Direction XZ", Vector) = (0.92,0.3,0,0)
-        [Toggle] _EnableNoiseField ("Enable Noise Field", Float) = 1
-        [Toggle] _EnableMacroWave ("Enable Macro Wave", Float) = 1
-        [Toggle] _EnableWave ("Enable Gust Front", Float) = 0
-        [Toggle] _EnableInteraction ("Enable Interaction", Float) = 1
-        [Toggle] _EnableTrailMap ("Enable Persistent Trail", Float) = 0
+        _WindSpeed ("Grass Lean", Range(0,10)) = 10
+        _WindDirection ("Wind Direction XZ", Vector) = (0.4472136,0.8944272,0,0)
 
-        // ================================================================
-        // Wind Shape - Advanced
-        // ================================================================
-        [HideInInspector] _WaveFrequency ("Wave Frequency", Range(0,10)) = 7.82
-        [HideInInspector] _WaveSharpness ("Wave Sharpness", Range(1,8)) = 4.71
-        [HideInInspector] _MacroWaveStrength ("Macro Wave Strength", Range(0,1)) = 0.706
-        [HideInInspector] _SideVariation ("Side Variation", Range(0,2)) = 0.22
+        [Toggle] _EnableWaveShape ("Enable Wave Shape", Float) = 1
+        [HideInInspector] _WaveFrequency ("Wave Frequency", Range(0.1,12)) = 3
+        [HideInInspector] _WaveSpacingVariation ("Wave Spacing Variation", Range(0,2)) = 2
+        [HideInInspector] _WaveSpeed ("Wave Speed", Range(0,8)) = 8
+        [HideInInspector] _WaveStrength ("Wave Strength", Range(0,2)) = 0.4
+        [HideInInspector] _WaveBodyInfluence ("Body Wave", Range(0,1)) = 0.5
+        [HideInInspector] _WaveTipInfluence ("Tip Wave", Range(0,1)) = 1
+        [HideInInspector] _WaveLateralInfluence ("Lateral Wave", Range(0,1)) = 1
 
-        // ================================================================
-        // Gust Front - Advanced
-        // ================================================================
-        [HideInInspector] _GustFrontStrength ("Gust Front Strength", Range(0,2)) = 0.95
-        [HideInInspector] _GustFrontSpeed ("Gust Front Speed", Range(0,25)) = 6.5
-        [HideInInspector] _GustFrontSpacing ("Gust Front Spacing", Range(1,40)) = 12
-        [HideInInspector] _GustFrontWidth ("Gust Front Width", Range(0.1,8)) = 1.4
-        [HideInInspector] _GustFrontTrail ("Gust Front Trail", Range(0.1,14)) = 4
-        [HideInInspector] _GustFrontCurvature ("Gust Front Curvature", Range(0,0.08)) = 0.014
-        [HideInInspector] _GustFrontOverlap ("Gust Front Overlap", Range(0,1.5)) = 0.85
-        [HideInInspector] _GustFrontBreakup ("Gust Front Breakup", Range(0,1)) = 0.55
-        [HideInInspector] _GustFrontWarp ("Gust Front Warp", Range(0,6)) = 1.35
-        [HideInInspector] _GustFrontLateralScale ("Gust Front Lateral Scale", Range(0.5,40)) = 7.5
+        [HideInInspector] _WindTextureScale ("Texture Scale", Vector) = (60,50,0,0)
+        [HideInInspector] _WindTextureScrollSpeed ("Texture Scroll Speed", Range(0,5)) = 0.25
+        [HideInInspector] _WindTextureContrast ("Texture Contrast", Vector) = (0.2,0.8,0,0)
+        [HideInInspector] _WindTextureInfluence ("Texture Influence", Range(0,1)) = 0.5
+        [HideInInspector] _WindTextureWaveInfluence ("Texture To Wave", Range(0,1)) = 1
 
-        // ================================================================
-        // Wind Noise - Advanced
-        // ================================================================
-        [HideInInspector] _WindScale ("Wind Scale", Range(0,10)) = 9.03
-        [HideInInspector] _WindNoiseScale ("Wind Noise Scale", Vector) = (34,52,0,0)
-        [HideInInspector] _WindNoiseSpeed ("Wind Noise Speed", Range(0,5)) = 0.51
-        [HideInInspector] _WindNoiseContrast ("Wind Noise Contrast", Vector) = (0.26,0.8,0,0)
-        [HideInInspector] _NoiseFieldInfluence ("Noise Field Influence", Range(0,1)) = 0.4
-
-        // ================================================================
-        // Blade Bend - Advanced
-        // ================================================================
-        [HideInInspector] _TopBend ("Top Bend", Range(0.1,5)) = 1.65
-        [HideInInspector] _StemBend ("Stem Bend", Range(0,1)) = 0.45
-        [HideInInspector] _WindHeight ("Wind Height", Range(0,1)) = 0.84
-        [HideInInspector] _DownBend ("Down Bend", Range(0,1)) = 0
-        [HideInInspector] _EnableFlutter ("Enable Flutter", Float) = 1
-        [HideInInspector] _DetailStrength ("Detail Strength", Range(0,1)) = 0.06
-        [HideInInspector] _FlutterSpeed ("Flutter Speed", Range(0,10)) = 1.65
-
-        // ================================================================
-        // Interaction - Advanced
-        // ================================================================
-        [HideInInspector] _InteractionStrength ("Interaction Strength", Range(0,2)) = 0
-        [HideInInspector] _InteractionRadiusMultiplier ("Interaction Radius Multiplier", Range(0.25,2)) = 1.21
-        [HideInInspector] _InteractionFlatten ("Interaction Flatten", Range(0,1)) = 0.512
-        [HideInInspector] _InteractionPushAway ("Interaction Push Away", Range(0,1)) = 0.7
-        [HideInInspector] _InteractionTrail ("Interaction Trail", Range(0,3)) = 0.77
-        [HideInInspector] _InteractionVerticalRange ("Interaction Vertical Range", Range(0.05,2)) = 1.21
-
-        // ================================================================
-        // Persistent Trail - Advanced
-        // ================================================================
-        [HideInInspector] _TrailMapInfluence ("Trail Influence", Range(0,2)) = 0.3
-        [HideInInspector] _TrailMapFlatten ("Trail Flatten", Range(0,1)) = 0
-        [HideInInspector] _TrailMapDarken ("Trail Darken", Range(0,1)) = 0.28
-        [HideInInspector] _TrailMapSharpness ("Trail Sharpness", Range(0.5,4)) = 1.25
-
-        // ================================================================
-        // Color - Advanced
-        // ================================================================
-        [HideInInspector] _NearColor ("Near Color", Color) = (1,0.827451,0,1)
+        [HideInInspector] _NearColor ("Near Color", Color) = (1,0.8753432,0,1)
         [HideInInspector] _FarColor ("Far Color", Color) = (1,1,1,1)
         [HideInInspector] _NearFarRange ("Near/Far Range", Vector) = (3,18,0,0)
-        [HideInInspector] _BottomColor ("Bottom Color", Color) = (0.3660378,0.3244493,0,1)
+        [HideInInspector] _BottomColor ("Bottom Color", Color) = (0.6981132,0.6981132,0.6981132,1)
         [HideInInspector] _HeightBlend ("Height Blend", Range(0,20)) = 4.5
 
-        // ================================================================
-        // Terrain - Advanced
-        // ================================================================
         [HideInInspector] _UseTerrainColor ("Use Terrain Color", Float) = 0
         [HideInInspector] _TerrainColor ("Terrain Color", Color) = (0.9887863,1,0,1)
-
-        // ================================================================
-        // Unused / Reserved
-        // ================================================================
-        [HideInInspector] _ShadowColor ("Shadow Color", Color) = (0.3,0.2199999,0.09999994,1)
     }
 
     SubShader
@@ -128,10 +63,6 @@ Shader "Custom/Vit/GrassWind_URP"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
-
-            /// <summary>
-            /// Vertex input data from mesh.
-            /// </summary>
             struct Attributes
             {
                 float4 positionOS : POSITION;
@@ -139,16 +70,12 @@ Shader "Custom/Vit/GrassWind_URP"
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
-            /// <summary>
-            /// Data passed from vertex stage to fragment stage.
-            /// </summary>
             struct Varyings
             {
                 float4 positionHCS : SV_POSITION;
                 float2 uv : TEXCOORD0;
                 float3 worldPos : TEXCOORD1;
                 float bladeMask : TEXCOORD2;
-                float trailMask : TEXCOORD3;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -156,179 +83,38 @@ Shader "Custom/Vit/GrassWind_URP"
             SAMPLER(sampler_BaseMap);
             TEXTURE2D(_WindTexture);
             SAMPLER(sampler_WindTexture);
-            TEXTURE2D(_GrassTrailMap);
-            SAMPLER(sampler_GrassTrailMap);
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseMap_ST;
                 float4 _BaseColor;
                 float _Cutoff;
-                float _EnableWave;
-                float _EnableNoiseField;
-                float _EnableMacroWave;
-                float _EnableInteraction;
-                float _EnableTrailMap;
-                float _EnableFlutter;
-                float _WindStrength;
                 float _WindSpeed;
-                float _WindScale;
-                float _TopBend;
-
                 float4 _WindDirection;
+                float _EnableWaveShape;
                 float _WaveFrequency;
-                float _WaveSharpness;
-                float _SideVariation;
-                float _DetailStrength;
-                float _GustFrontStrength;
-                float _GustFrontSpeed;
-                float _GustFrontSpacing;
-                float _GustFrontWidth;
-                float _GustFrontCurvature;
-                float _GustFrontOverlap;
-                float _GustFrontBreakup;
-                float _StemBend;
-
+                float _WaveSpacingVariation;
+                float _WaveSpeed;
+                float _WaveStrength;
+                float _WaveBodyInfluence;
+                float _WaveTipInfluence;
+                float _WaveLateralInfluence;
+                float4 _WindTextureScale;
+                float _WindTextureScrollSpeed;
+                float4 _WindTextureContrast;
+                float _WindTextureInfluence;
+                float _WindTextureWaveInfluence;
                 float4 _NearColor;
                 float4 _FarColor;
                 float4 _NearFarRange;
-
                 float4 _BottomColor;
                 float _HeightBlend;
-
-                float4 _ShadowColor;
-
                 float _UseTerrainColor;
                 float4 _TerrainColor;
-
-                float4 _WindTexture_ST;
-                float4 _WindNoiseScale;
-                float _WindNoiseSpeed;
-                float4 _WindNoiseContrast;
-                float _NoiseFieldInfluence;
-                float _WindHeight;
-                float _GustFrontTrail;
-                float _GustFrontWarp;
-                float _GustFrontLateralScale;
-
-                float _DownBend;
-                float _MacroWaveStrength;
-                float _FlutterSpeed;
-                float _InteractionStrength;
-                float _InteractionRadiusMultiplier;
-                float _InteractionFlatten;
-                float _InteractionPushAway;
-                float _InteractionTrail;
-                float _InteractionVerticalRange;
-                float _TrailMapInfluence;
-                float _TrailMapFlatten;
-                float _TrailMapDarken;
-                float _TrailMapSharpness;
-
-
             CBUFFER_END
-
-            #define GRASS_INTERACTOR_MAX 8
-
-            float4 _GrassInteractorData[GRASS_INTERACTOR_MAX];
-            float4 _GrassInteractorVelocity[GRASS_INTERACTOR_MAX];
-            int _GrassInteractorCount;
-            float4 _GrassTrailBounds;
-
-            /// <summary>
-            /// Calculates blade height mask in object space.
-            /// </summary>
-            /// <remarks>
-            /// Lower part stays more stable, upper part receives stronger wind/color blend.
-            /// </remarks>
-            /// <param name="positionOS">Object-space vertex position.</param>
-            /// <returns>Height mask in range 0..1.</returns>
-            float GetBladeHeightMask(float3 positionOS)
-            {
-                return saturate(positionOS.y * _HeightBlend);
-            }
-
-            /// <summary>
-            /// Samples animated wind noise in world space.
-            /// </summary>
-            /// <remarks>
-            /// World-space sampling helps multiple grass patches move coherently.
-            /// </remarks>
-            /// <param name="worldPos">World-space position.</param>
-            /// <returns>Wind noise value in range 0..1.</returns>
-            float SampleWindNoise(float3 worldPos)
-            {
-                float2 windDir = normalize(_WindDirection.xy + float2(0.0001, 0.0001));
-
-                float2 uv;
-                uv.x = worldPos.x / max(_WindNoiseScale.x, 0.0001);
-                uv.y = worldPos.z / max(_WindNoiseScale.y, 0.0001);
-
-                uv += windDir * (_Time.y * _WindNoiseSpeed);
-
-                // Vertex-stage texture sampling on D3D11 needs an explicit LOD.
-                float noise = SAMPLE_TEXTURE2D_LOD(_WindTexture, sampler_WindTexture, uv, 0).r;
-
-                float minC = _WindNoiseContrast.x;
-                float maxC = max(_WindNoiseContrast.y, minC + 0.0001);
-
-                noise = saturate((noise - minC) / (maxC - minC));
-
-                return noise;
-            }
-
-            /// <summary>
-            /// Calculates distance-based grass tint from camera.
-            /// </summary>
-            /// <param name="worldPos">Fragment world position.</param>
-            /// <returns>Near/Far blended color.</returns>
-            float3 GetDistanceTint(float3 worldPos)
-            {
-                float dist = distance(_WorldSpaceCameraPos, worldPos);
-
-                float nearRange = _NearFarRange.x;
-                float farRange = max(_NearFarRange.y, nearRange + 0.0001);
-
-                float t = saturate((dist - nearRange) / (farRange - nearRange));
-
-                return lerp(_NearColor.rgb, _FarColor.rgb, t);
-            }
-
-            /// <summary>
-            /// Calculates height-based blade tint.
-            /// </summary>
-            /// <param name="positionOS">Original object-space position.</param>
-            /// <returns>Bottom-to-top blended color.</returns>
-            float3 GetHeightTint(float3 positionOS)
-            {
-                float h = GetBladeHeightMask(positionOS);
-                return lerp(_BottomColor.rgb, _BaseColor.rgb, h);
-            }
 
             float GetBladeMaskFromUV(float uvY)
             {
                 return saturate(uvY);
-            }
-
-            /// <summary>
-            /// Remaps a value into 0..1 using a min/max range.
-            /// </summary>
-            /// <param name="value">Input value.</param>
-            /// <param name="minMax">Range in x=min, y=max.</param>
-            /// <returns>Remapped value in range 0..1.</returns>
-            float Remap01(float value, float2 minMax)
-            {
-                float maxValue = max(minMax.y, minMax.x + 0.0001);
-                return saturate((value - minMax.x) / (maxValue - minMax.x));
-            }
-
-            /// <summary>
-            /// Samples grayscale noise in world space.
-            /// </summary>
-            /// <param name="uv">Noise UV.</param>
-            /// <returns>Noise value in range 0..1.</returns>
-            float SampleNoise01(float2 uv)
-            {
-                return SAMPLE_TEXTURE2D_LOD(_WindTexture, sampler_WindTexture, uv, 0).r;
             }
 
             float GetToggle01(float value)
@@ -336,443 +122,107 @@ Shader "Custom/Vit/GrassWind_URP"
                 return step(0.5, value);
             }
 
-            float3 SamplePersistentTrail(float3 worldPos)
+            float GetWindLean01()
             {
-                float trailEnabled = GetToggle01(_EnableTrailMap);
-                if (trailEnabled < 0.5)
-                {
-                    return float3(0.0, 0.0, 0.0);
-                }
-
-                float2 boundsSize = max(_GrassTrailBounds.zw, float2(0.001, 0.001));
-                float2 uv = (worldPos.xz - _GrassTrailBounds.xy) / boundsSize;
-
-                if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0)
-                {
-                    return float3(0.0, 0.0, 0.0);
-                }
-
-                float4 trailSample = SAMPLE_TEXTURE2D_LOD(_GrassTrailMap, sampler_GrassTrailMap, uv, 0);
-                float trailMask = saturate(pow(trailSample.r, max(_TrailMapSharpness, 0.01)) * _TrailMapInfluence);
-                float2 trailDir = trailSample.gb * 2.0 - 1.0;
-
-                return float3(trailMask, trailDir.x, trailDir.y);
+                return saturate(_WindSpeed * 0.1);
             }
 
-            float3 ApplyPersistentTrail(float3 positionOS, float3 trailSample, float bladeMask, float rootLock, float stemProfile)
+            float SampleWindTexture01(float2 uv)
             {
-                float trailMask = trailSample.x;
-                if (trailMask <= 0.0001)
-                {
-                    return positionOS;
-                }
-
-                float2 trailDir = trailSample.yz;
-                float trailDirLength = length(trailDir);
-                if (trailDirLength > 0.0001)
-                {
-                    trailDir /= trailDirLength;
-                }
-                else
-                {
-                    trailDir = normalize(_WindDirection.xy + float2(0.0001, 0.0001));
-                }
-
-                float trailProfile = rootLock * lerp(pow(bladeMask, 0.82), stemProfile, 0.58);
-                float layAmount = trailMask * _TrailMapInfluence * trailProfile;
-                float flatten = trailMask * _TrailMapFlatten * trailProfile;
-                float2 trailPerp = float2(-trailDir.y, trailDir.x);
-
-                float2 offsetXZ = trailDir * (layAmount * 0.24);
-                offsetXZ += trailPerp * (layAmount * 0.05);
-
-                return positionOS + float3(offsetXZ.x, -flatten, offsetXZ.y);
+                return SAMPLE_TEXTURE2D_LOD(_WindTexture, sampler_WindTexture, uv, 0).r;
             }
 
-            float3 ApplyInteraction(float3 positionOS, float3 worldPos, float bladeMask, float rootLock, float stemProfile)
+            float GetWindTextureMask(float along, float across)
             {
-                float interactionEnabled = GetToggle01(_EnableInteraction);
-                if (interactionEnabled < 0.5 || _GrassInteractorCount <= 0)
-                {
-                    return positionOS;
-                }
+                float2 scale = max(_WindTextureScale.xy, float2(0.001, 0.001));
+                float2 uv = float2(along / scale.x, across / scale.y);
+                // Subtract time so the visible texture pattern travels with the wind direction
+                // instead of appearing to move against it.
+                uv.x -= _Time.y * _WindTextureScrollSpeed;
 
-                float interactionMask = rootLock * lerp(pow(bladeMask, 0.92), stemProfile, 0.55);
-                float2 totalOffset = float2(0.0, 0.0);
-                float totalFlatten = 0.0;
+                float raw = SampleWindTexture01(uv);
+                float minValue = _WindTextureContrast.x;
+                float maxValue = max(_WindTextureContrast.y, minValue + 0.0001);
+                float mask = saturate((raw - minValue) / (maxValue - minValue));
 
-                [loop]
-                for (int i = 0; i < GRASS_INTERACTOR_MAX; i++)
-                {
-                    if (i >= _GrassInteractorCount)
-                    {
-                        break;
-                    }
-
-                    float3 interactorPos = _GrassInteractorData[i].xyz;
-                    float radius = max(_GrassInteractorData[i].w * _InteractionRadiusMultiplier, 0.001);
-                    float strength = max(_GrassInteractorVelocity[i].w, 0.0);
-
-                    float2 delta = worldPos.xz - interactorPos.xz;
-                    float dist = length(delta);
-
-                    float2 moveVec = _GrassInteractorVelocity[i].xz;
-                    float speed = length(moveVec);
-                    float2 moveDir = speed > 0.0001 ? moveVec / speed : float2(0.0, 0.0);
-
-                    float along = dot(delta, moveDir);
-                    float2 lateralVec = delta - moveDir * along;
-                    float lateral = length(lateralVec);
-
-                    float trailScale = 1.0;
-                    if (speed > 0.0001)
-                    {
-                        trailScale += _InteractionTrail * saturate(speed * 0.18) * step(along, 0.0);
-                    }
-
-                    float effectiveDistance = dist;
-                    if (speed > 0.0001)
-                    {
-                        float effectiveAlong = along / trailScale;
-                        effectiveDistance = length(float2(effectiveAlong, lateral));
-                    }
-
-                    float radialInfluence = 1.0 - smoothstep(radius * 0.18, radius, effectiveDistance);
-                    float verticalRange = max(_InteractionVerticalRange, 0.05);
-                    float verticalInfluence =
-                        1.0 - smoothstep(verticalRange, verticalRange + radius * 0.65, abs(worldPos.y - interactorPos.y));
-
-                    float influence = radialInfluence * verticalInfluence * strength;
-                    if (influence <= 0.0001)
-                    {
-                        continue;
-                    }
-
-                    float2 awayDir = dist > 0.0001 ? delta / dist : float2(0.0, 0.0);
-                    float2 bendDir = awayDir;
-                    float dragBlend = saturate(speed * 0.12);
-                    if (dragBlend > 0.0001)
-                    {
-                        float2 bendBase = awayDir * _InteractionPushAway + moveDir * dragBlend;
-                        float bendBaseLength = length(bendBase);
-                        bendDir = bendBaseLength > 0.0001 ? bendBase / bendBaseLength : moveDir;
-                    }
-
-                    totalOffset += bendDir * (influence * _InteractionStrength * interactionMask);
-                    totalFlatten += influence * _InteractionFlatten * interactionMask;
-                }
-
-                return positionOS + float3(totalOffset.x, -totalFlatten, totalOffset.y);
+                return lerp(1.0, mask, saturate(_WindTextureInfluence));
             }
 
-            float2 SampleFrontSignal(float coord, float travel, float spacing, float width, float trail)
+            float3 GetDistanceTint(float3 worldPos)
             {
-                float phase = frac((coord - travel) / spacing);
-                float distBehindFront = phase * spacing;
-
-                float safeWidth = max(width, 0.001);
-                float safeTrail = max(trail, 0.001);
-                float totalLength = safeWidth + safeTrail;
-
-                float head = exp2(-(distBehindFront * distBehindFront) / (safeWidth * safeWidth * 1.7));
-                float tail = exp2(-distBehindFront / (safeTrail * 0.9));
-                float fadeOut = 1.0 - smoothstep(safeWidth + safeTrail * 1.2, safeWidth + safeTrail * 2.6, distBehindFront);
-                float front = saturate(max(head, tail * 0.62) * fadeOut);
-
-                float waveT = saturate(distBehindFront / max(totalLength, 0.001));
-                float waveRise = smoothstep(0.03, 0.26, waveT);
-                float waveFall = 1.0 - smoothstep(0.72, 1.02, waveT);
-                float undulation = sin(waveT * 3.14159265) * waveRise * waveFall * front;
-
-                return float2(front, undulation);
+                float dist = distance(_WorldSpaceCameraPos, worldPos);
+                float nearRange = _NearFarRange.x;
+                float farRange = max(_NearFarRange.y, nearRange + 0.0001);
+                float t = saturate((dist - nearRange) / (farRange - nearRange));
+                return lerp(_NearColor.rgb, _FarColor.rgb, t);
             }
 
-            float SampleFrontBreakup(float2 breakupUV, float breakupAmount)
-            {
-                if (_EnableNoiseField < 0.5)
-                {
-                    return 1.0;
-                }
-
-                float breakupA = SampleNoise01(breakupUV);
-                float breakupB = SampleNoise01(breakupUV * 1.91 + float2(0.37, 0.63));
-                float breakupMask = smoothstep(0.20, 0.86, breakupA * 0.62 + breakupB * 0.38);
-                return lerp(1.0, breakupMask, breakupAmount);
-            }
-
-            float2 SampleGustFront(float along, float across, float2 fieldUV, float warp)
-            {
-                float width = max(_GustFrontWidth, 0.001);
-                float trail = max(_GustFrontTrail, 0.001);
-                float spacing = max(_GustFrontSpacing, width + trail + 0.001);
-                float spacingB = max(spacing * 0.74, width * 1.12 + trail * 0.82 + 0.001);
-                float spacingC = max(spacing * 1.43, width * 0.86 + trail * 1.36 + 0.001);
-                float curvature = max(_GustFrontCurvature, 0.0);
-                float lateralScale = max(_GustFrontLateralScale, 0.001);
-                float overlap = max(_GustFrontOverlap, 0.0);
-                float breakupAmount = saturate(_GustFrontBreakup);
-                float travel = _Time.y * _GustFrontSpeed;
-
-                // Keep front shaping anchored in world space so the wave sweeps through the grass
-                // instead of re-shaping every frame.
-                float noiseEnabled = GetToggle01(_EnableNoiseField);
-                float lateralShiftA = 0.0;
-                float lateralShiftB = lateralScale * 0.35;
-                float lateralShiftC = -lateralScale * 0.42;
-
-                if (noiseEnabled > 0.5)
-                {
-                    lateralShiftA = SampleNoise01(fieldUV * 0.33 + float2(0.17, 0.29));
-                    lateralShiftB = SampleNoise01(fieldUV * 0.51 + float2(0.61, -0.13));
-                    lateralShiftC = SampleNoise01(fieldUV * 0.79 + float2(-0.24, 0.09));
-
-                    lateralShiftA = (lateralShiftA * 2.0 - 1.0) * _GustFrontWarp * 5.0;
-                    lateralShiftB = (lateralShiftB * 2.0 - 1.0) * _GustFrontWarp * 3.6 + lateralScale * 0.35;
-                    lateralShiftC = (lateralShiftC * 2.0 - 1.0) * _GustFrontWarp * 6.4 - lateralScale * 0.42;
-                }
-
-                float shiftedAcrossA = across + lateralShiftA;
-                float shiftedAcrossB = across + lateralShiftB;
-                float shiftedAcrossC = across + lateralShiftC;
-
-                float coordA = along - shiftedAcrossA * shiftedAcrossA * curvature + warp * 1.35;
-                float coordB = along - shiftedAcrossB * shiftedAcrossB * (curvature * 0.72) + warp * 0.92;
-                float coordC = along - shiftedAcrossC * shiftedAcrossC * (curvature * 1.28) + warp * 1.82;
-
-                float2 layerA = SampleFrontSignal(coordA, travel, spacing, width, trail);
-                float2 layerB = SampleFrontSignal(
-                    coordB,
-                    travel * 1.12 + spacing * 0.37,
-                    spacingB,
-                    width * 1.12,
-                    trail * 0.82);
-                float2 layerC = SampleFrontSignal(
-                    coordC,
-                    travel * 0.81 + spacing * 0.71,
-                    spacingC,
-                    width * 0.86,
-                    trail * 1.36);
-
-                float frontCoordA = coordA - travel;
-                float frontCoordB = coordB - (travel * 1.12 + spacing * 0.37);
-                float frontCoordC = coordC - (travel * 0.81 + spacing * 0.71);
-
-                float breakupA = SampleFrontBreakup(
-                    float2(shiftedAcrossA / lateralScale, frontCoordA * 0.028) + float2(0.23, 0.41),
-                    breakupAmount);
-                float breakupB = SampleFrontBreakup(
-                    float2(shiftedAcrossB / (lateralScale * 0.82), frontCoordB * 0.031) + float2(0.61, -0.27),
-                    breakupAmount);
-                float breakupC = SampleFrontBreakup(
-                    float2(shiftedAcrossC / (lateralScale * 1.24), frontCoordC * 0.024) + float2(-0.37, 0.18),
-                    breakupAmount);
-
-                float front = layerA.x * breakupA;
-                front += layerB.x * breakupB * overlap * 0.76;
-                front += layerC.x * breakupC * overlap * 0.52;
-
-                float wave = layerA.y * breakupA;
-                wave += layerB.y * breakupB * overlap * 0.76;
-                wave += layerC.y * breakupC * overlap * 0.52;
-
-                return float2(min(front, 1.85), min(wave, 1.25)) * _GustFrontStrength;
-            }
-
-            float GetStemBendProfile(float bladeMask)
-            {
-                float stemT = saturate(_StemBend);
-
-                float tipOnly = pow(bladeMask, 2.8);
-                float softStem = pow(bladeMask, 1.4);
-                float fullStem = pow(bladeMask, 0.58);
-
-                float profile = lerp(tipOnly, softStem, saturate(stemT * 2.0));
-                profile = lerp(profile, fullStem, saturate((stemT - 0.5) * 2.0));
-
-                float tipBias = saturate((_TopBend - 0.1) / 4.9);
-                float tipFocus = pow(bladeMask, lerp(1.0, 1.85, tipBias));
-
-                return lerp(profile, profile * tipFocus, tipBias * 0.55);
-            }
-
-            /// <summary>
-            /// Calculates height-based blade tint.
-            /// </summary>
-            /// <param name="bladeMask">Blade mask from uv.y.</param>
-            /// <returns>Bottom-to-top blended tint.</returns>
             float3 GetHeightTint(float bladeMask)
             {
-                return lerp(_BottomColor.rgb, _BaseColor.rgb, bladeMask);
+                float heightBlend = max(_HeightBlend, 0.0001);
+                float t = saturate(bladeMask * heightBlend);
+                return lerp(_BottomColor.rgb, float3(1.0, 1.0, 1.0), t);
             }
 
-            float3 ApplyWind(float3 positionOS, float bladeMask, float3 trailSample)
+            float ComputeWaveSignal(float along, float across, float textureMask)
             {
-                float3 worldPos = TransformObjectToWorld(positionOS);
+                if (GetToggle01(_EnableWaveShape) < 0.5)
+                {
+                    return 0.0;
+                }
 
-                float noiseEnabled = GetToggle01(_EnableNoiseField);
-                float macroWaveEnabled = GetToggle01(_EnableMacroWave);
-                float gustFrontEnabled = GetToggle01(_EnableWave);
-                float flutterEnabled = GetToggle01(_EnableFlutter);
-                float noiseInfluence = saturate(_NoiseFieldInfluence) * noiseEnabled;
+                float travel = _Time.y * _WaveSpeed;
+                float spacingVariation = saturate(_WaveSpacingVariation);
+                float spacingWarp = 0.0;
+                if (spacingVariation > 0.0001)
+                {
+                    float warpCoordA = along * (_WaveFrequency * 0.19) + across * 0.045 + 0.73;
+                    float warpCoordB = along * (_WaveFrequency * 0.09) - across * 0.082 - 1.41;
+                    float warpNoise = sin(warpCoordA) * 0.62 + sin(warpCoordB) * 0.38;
+                    spacingWarp = warpNoise * (spacingVariation * (1.2 / max(_WaveFrequency, 0.1)));
+                }
 
+                float irregularAlong = along + spacingWarp;
+                float phaseA = irregularAlong * _WaveFrequency - travel;
+                float phaseB = irregularAlong * (_WaveFrequency * 0.56) - travel * 1.28 + across * 0.12 + 1.17;
+                float signal = sin(phaseA) * 0.72 + sin(phaseB) * 0.28;
+                float textureWave = lerp(1.0, textureMask, saturate(_WindTextureWaveInfluence));
+
+                return signal * _WaveStrength * textureWave;
+            }
+
+            float3 ApplyWind(float3 worldPos, float bladeMask)
+            {
                 float2 dir = normalize(_WindDirection.xy + float2(0.0001, 0.0001));
                 float2 perp = float2(-dir.y, dir.x);
-                float2 noiseScale = max(_WindNoiseScale.xy, float2(0.001, 0.001));
-
-                float2 fieldUV = worldPos.xz / noiseScale;
-                float2 flow = dir * (_Time.y * (_WindNoiseSpeed * 0.15));
-                float2 warpFlow = perp * (_Time.y * (_WindNoiseSpeed * 0.03));
-
                 float along = dot(worldPos.xz, dir);
                 float across = dot(worldPos.xz, perp);
 
-                // ------------------------------------------------------------
-                // 1) Domain warp
-                // ------------------------------------------------------------
-                float warp = 0.0;
-                if (noiseEnabled > 0.5)
-                {
-                    float warpA = SampleNoise01(fieldUV * 0.55 + warpFlow + float2(0.11, 0.37));
-                    float warpB = SampleNoise01(fieldUV * 0.95 + flow * 0.35 + float2(0.53, 0.07));
-                    warp = ((warpA + warpB) * 0.5 * 2.0 - 1.0) * 2.2 * noiseInfluence;
-                }
+                float rootLock = smoothstep(0.04, 0.16, bladeMask);
+                float leanProfile = rootLock * pow(bladeMask, 1.45);
+                float leanAmount = GetWindLean01();
+                float textureMask = GetWindTextureMask(along, across);
 
-                // ------------------------------------------------------------
-                // 2) Broad gust zones
-                // ------------------------------------------------------------
-                float gustNoise = 1.0;
-                if (noiseEnabled > 0.5)
-                {
-                    gustNoise = SampleNoise01(fieldUV + flow + dir * warp * 0.12);
-                    gustNoise = smoothstep(_WindNoiseContrast.x, max(_WindNoiseContrast.y, _WindNoiseContrast.x + 0.0001),
-                        gustNoise);
+                float baseLean = leanAmount * textureMask * leanProfile * 0.38;
+                float waveSignal = ComputeWaveSignal(along, across, textureMask);
 
-                    // Noise now modulates the larger wave shapes instead of overpowering them.
-                    gustNoise = lerp(0.20, 1.25, gustNoise);
-                    gustNoise = lerp(1.0, gustNoise, noiseInfluence);
-                }
+                float bodyWaveProfile = rootLock * pow(bladeMask, 1.35);
+                float tipWaveProfile = rootLock * pow(bladeMask, 3.4);
+                float bodyWave = waveSignal * _WaveBodyInfluence * bodyWaveProfile * 0.18;
+                float tipWave = waveSignal * _WaveTipInfluence * tipWaveProfile * 0.32;
+                float totalWave = bodyWave + tipWave;
 
-                // ------------------------------------------------------------
-                // 3) Travelling wave front
-                // ------------------------------------------------------------
-                float oceanMask = 1.0;
-                if (macroWaveEnabled > 0.5)
-                {
-                    float curvedAlong = along - across * across * (_GustFrontCurvature * 0.35);
-                    float bandPhaseA = curvedAlong * _WaveFrequency - _Time.y * _WindSpeed;
-                    float bandPhaseB =
-                        curvedAlong * (_WaveFrequency * 0.58 + 0.02) - _Time.y * (_WindSpeed * 0.63) + 1.7;
-                    float band = (sin(bandPhaseA) * 0.65 + sin(bandPhaseB) * 0.35) * 0.5 + 0.5;
+                float2 offsetXZ = dir * (baseLean + totalWave);
+                offsetXZ += perp * (totalWave * _WaveLateralInfluence * (0.35 + bladeMask * 0.2));
 
-                    float sharpT = saturate((_WaveSharpness - 1.0) / 7.0);
-                    float bandMin = lerp(0.16, 0.32, sharpT);
-                    float bandMax = lerp(0.70, 0.90, sharpT);
-                    band = smoothstep(bandMin, bandMax, band);
+                float sag = baseLean * baseLean * lerp(0.18, 0.85, bladeMask);
+                sag += abs(totalWave) * lerp(0.0, 0.08, bladeMask);
 
-                    float macroInfluence = saturate(_MacroWaveStrength);
-                    oceanMask = lerp(1.0, lerp(0.70, 1.35, band), macroInfluence);
-                }
-
-                // ------------------------------------------------------------
-                // 4) Directional gust fronts
-                // ------------------------------------------------------------
-                float2 gustSignal = float2(0.0, 0.0);
-                if (gustFrontEnabled > 0.5)
-                {
-                    gustSignal = SampleGustFront(along, across, fieldUV, warp);
-                }
-
-                float gustFront = gustSignal.x;
-                float gustWave = gustSignal.y;
-
-                // ------------------------------------------------------------
-                // 5) Side variation
-                // ------------------------------------------------------------
-                float sideMask = 1.0 + sin(across * 0.035 - _Time.y * (_WindSpeed * 0.15)) * _SideVariation;
-                sideMask = max(sideMask, 0.35);
-
-                // ------------------------------------------------------------
-                // 6) Tip flutter
-                // ------------------------------------------------------------
-                float flutter = 0.0;
-                if (flutterEnabled > 0.5)
-                {
-                    float detailScale = max(_WindScale, 0.001);
-                    float flutterNoise = SampleNoise01(
-                        fieldUV * detailScale * 2.6 + flow * (_FlutterSpeed * 0.9) + float2(0.27, 0.61));
-                    flutterNoise = flutterNoise * 2.0 - 1.0;
-
-                    float flutterSine = sin(along * (detailScale * 1.6) - _Time.y * _FlutterSpeed + across * 0.08);
-                    flutter = (flutterNoise * 0.55 + flutterSine * 0.45) * _DetailStrength;
-                }
-
-                // ------------------------------------------------------------
-                // 7) Body mask vs tip mask
-                // ------------------------------------------------------------
-                float rootLock = smoothstep(0.03, lerp(0.18, 0.09, saturate(_StemBend)), bladeMask);
-                float stemProfile = GetStemBendProfile(bladeMask);
-                float mainBendMask = rootLock * stemProfile;
-
-                float flutterHeightMask = smoothstep(1.0 - _WindHeight, 1.0, bladeMask);
-                float flutterBodyMask = pow(bladeMask, lerp(1.9, 1.05, saturate(_StemBend)));
-                float flutterMask = rootLock * lerp(flutterBodyMask, flutterHeightMask, 0.68);
-
-                // ------------------------------------------------------------
-                // 8) Final bend
-                // ------------------------------------------------------------
-                float backgroundBend = 0.0;
-                if (noiseEnabled > 0.5 || macroWaveEnabled > 0.5)
-                {
-                    float backgroundMask = sideMask;
-
-                    if (noiseEnabled > 0.5)
-                    {
-                        backgroundMask *= gustNoise;
-                    }
-
-                    if (macroWaveEnabled > 0.5)
-                    {
-                        backgroundMask *= oceanMask;
-                    }
-
-                    backgroundBend = backgroundMask;
-                }
-                float frontResponse = smoothstep(0.02, 0.88, saturate(gustFront * 0.9));
-                float impactBend = frontResponse * (0.45 + gustNoise * 0.65);
-                float waveRoll = gustWave * (0.16 + gustNoise * 0.10);
-                float bend = (backgroundBend + impactBend) * _WindStrength * mainBendMask;
-
-                float2 offsetXZ = dir * bend;
-
-                // Gust fronts flatten the grass more aggressively along their path.
-                float flatten = frontResponse * _WindStrength * mainBendMask;
-                offsetXZ += dir * (flatten * 0.62);
-
-                // A soft travelling swell rides with the front so the grass rolls with the wave.
-                float rollAmount = waveRoll * _WindStrength * mainBendMask;
-                offsetXZ += dir * (rollAmount * 0.22);
-                offsetXZ += perp * (rollAmount * 0.10);
-
-                // Small sideways softness with extra spread near the gust front.
-                offsetXZ += perp * (bend * 0.14 + flatten * 0.07);
-
-                // Tip flutter rides on top of the main bend.
-                offsetXZ += dir * (flutter * flutterMask * 0.22);
-                offsetXZ += perp * (flutter * flutterMask * 0.10);
-
-                float waveLift = rollAmount * 0.22;
-                float offsetY = -((bend * bend) + flatten * 0.42) * _DownBend + waveLift;
-
-                float3 windPositionOS = positionOS + float3(offsetXZ.x, offsetY, offsetXZ.y);
-                float3 interactionPositionOS = ApplyInteraction(windPositionOS, worldPos, bladeMask, rootLock, stemProfile);
-                return ApplyPersistentTrail(interactionPositionOS, trailSample, bladeMask, rootLock, stemProfile);
+                // Apply the deformation in world space so randomly rotated terrain detail
+                // instances still lean in the same global wind direction.
+                return worldPos + float3(offsetXZ.x, -sag, offsetXZ.y);
             }
 
-            /// <summary>
-            /// Vertex shader.
-            /// </summary>
-            /// <param name="input">Mesh vertex input.</param>
-            /// <returns>Interpolated data for fragment stage.</returns>
             Varyings vert(Attributes input)
             {
                 Varyings output;
@@ -781,47 +231,33 @@ Shader "Custom/Vit/GrassWind_URP"
 
                 float bladeMask = GetBladeMaskFromUV(input.uv.y);
                 float3 baseWorldPos = TransformObjectToWorld(input.positionOS.xyz);
-                float3 trailSample = SamplePersistentTrail(baseWorldPos);
-                float3 animatedPosOS = ApplyWind(input.positionOS.xyz, bladeMask, trailSample);
-                float3 worldPos = TransformObjectToWorld(animatedPosOS);
+                float3 worldPos = ApplyWind(baseWorldPos, bladeMask);
 
                 output.positionHCS = TransformWorldToHClip(worldPos);
                 output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
                 output.worldPos = worldPos;
                 output.bladeMask = bladeMask;
-                output.trailMask = trailSample.x;
-
                 return output;
             }
 
-            /// <summary>
-            /// Fragment shader with alpha clipping and layered grass tint.
-            /// </summary>
-            /// <param name="input">Interpolated fragment input.</param>
-            /// <returns>Final pixel color.</returns>
             half4 frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
 
                 half4 tex = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv);
-                half4 color = tex * _BaseColor;
+                half alpha = tex.a * _BaseColor.a;
+                clip(alpha - _Cutoff);
 
-                clip(color.a - _Cutoff);
-
-                float3 distanceTint = GetDistanceTint(input.worldPos);
-                float3 heightTint = GetHeightTint(input.bladeMask);
-
-                color.rgb *= distanceTint;
-                color.rgb *= heightTint;
+                float3 color = tex.rgb * _BaseColor.rgb;
+                color *= GetDistanceTint(input.worldPos);
+                color *= GetHeightTint(input.bladeMask);
 
                 if (_UseTerrainColor > 0.5)
                 {
-                    color.rgb = lerp(color.rgb, color.rgb * _TerrainColor.rgb, 0.35);
+                    color = lerp(color, color * _TerrainColor.rgb, 0.35);
                 }
 
-                color.rgb *= lerp(1.0, 1.0 - _TrailMapDarken, input.trailMask);
-
-                return color;
+                return half4(color, alpha);
             }
             ENDHLSL
         }

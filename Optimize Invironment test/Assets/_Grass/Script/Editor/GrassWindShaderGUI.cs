@@ -4,27 +4,14 @@ using UnityEngine;
 /// <summary>
 /// Custom material inspector for the grass wind shader.
 /// </summary>
-/// <remarks>
-/// Splits parameters into frequent and advanced groups.
-/// Hidden properties are still editable here.
-/// </remarks>
 public sealed class GrassWindShaderGUI : ShaderGUI
 {
     private static bool s_ShowCommon = true;
     private static bool s_ShowWindShape = true;
-    private static bool s_ShowGustFront = true;
-    private static bool s_ShowWindNoise = false;
-    private static bool s_ShowBladeBend = false;
-    private static bool s_ShowInteraction = true;
-    private static bool s_ShowPersistentTrail = true;
+    private static bool s_ShowWindTexture = true;
     private static bool s_ShowColor = false;
     private static bool s_ShowTerrain = false;
 
-    /// <summary>
-    /// Draws the custom inspector.
-    /// </summary>
-    /// <param name="materialEditor">Unity material editor.</param>
-    /// <param name="properties">All material properties.</param>
     public override void OnGUI(MaterialEditor materialEditor, MaterialProperty[] properties)
     {
         MaterialProperty baseMap = Find("_BaseMap", properties);
@@ -32,56 +19,23 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         MaterialProperty cutoff = Find("_Cutoff", properties);
 
         MaterialProperty windTexture = Find("_WindTexture", properties);
-        MaterialProperty enableNoiseField = Find("_EnableNoiseField", properties);
-        MaterialProperty enableMacroWave = Find("_EnableMacroWave", properties);
-        MaterialProperty enableWave = Find("_EnableWave", properties);
         MaterialProperty windSpeed = Find("_WindSpeed", properties);
-        MaterialProperty windStrength = Find("_WindStrength", properties);
         MaterialProperty windDirection = Find("_WindDirection", properties);
 
+        MaterialProperty enableWaveShape = Find("_EnableWaveShape", properties);
         MaterialProperty waveFrequency = Find("_WaveFrequency", properties);
-        MaterialProperty waveSharpness = Find("_WaveSharpness", properties);
-        MaterialProperty macroWaveStrength = Find("_MacroWaveStrength", properties);
-        MaterialProperty sideVariation = Find("_SideVariation", properties);
+        MaterialProperty waveSpacingVariation = Find("_WaveSpacingVariation", properties);
+        MaterialProperty waveSpeed = Find("_WaveSpeed", properties);
+        MaterialProperty waveStrength = Find("_WaveStrength", properties);
+        MaterialProperty waveBodyInfluence = Find("_WaveBodyInfluence", properties);
+        MaterialProperty waveTipInfluence = Find("_WaveTipInfluence", properties);
+        MaterialProperty waveLateralInfluence = Find("_WaveLateralInfluence", properties);
 
-        MaterialProperty gustFrontStrength = Find("_GustFrontStrength", properties);
-        MaterialProperty gustFrontSpeed = Find("_GustFrontSpeed", properties);
-        MaterialProperty gustFrontSpacing = Find("_GustFrontSpacing", properties);
-        MaterialProperty gustFrontWidth = Find("_GustFrontWidth", properties);
-        MaterialProperty gustFrontTrail = Find("_GustFrontTrail", properties);
-        MaterialProperty gustFrontCurvature = Find("_GustFrontCurvature", properties);
-        MaterialProperty gustFrontOverlap = Find("_GustFrontOverlap", properties);
-        MaterialProperty gustFrontBreakup = Find("_GustFrontBreakup", properties);
-        MaterialProperty gustFrontWarp = Find("_GustFrontWarp", properties);
-        MaterialProperty gustFrontLateralScale = Find("_GustFrontLateralScale", properties);
-
-        MaterialProperty windScale = Find("_WindScale", properties);
-        MaterialProperty windNoiseScale = Find("_WindNoiseScale", properties);
-        MaterialProperty windNoiseSpeed = Find("_WindNoiseSpeed", properties);
-        MaterialProperty windNoiseContrast = Find("_WindNoiseContrast", properties);
-        MaterialProperty noiseFieldInfluence = Find("_NoiseFieldInfluence", properties);
-
-        MaterialProperty topBend = Find("_TopBend", properties);
-        MaterialProperty stemBend = Find("_StemBend", properties);
-        MaterialProperty windHeight = Find("_WindHeight", properties);
-        MaterialProperty downBend = Find("_DownBend", properties);
-        MaterialProperty enableFlutter = Find("_EnableFlutter", properties);
-        MaterialProperty detailStrength = Find("_DetailStrength", properties);
-        MaterialProperty flutterSpeed = Find("_FlutterSpeed", properties);
-
-        MaterialProperty enableInteraction = Find("_EnableInteraction", properties);
-        MaterialProperty interactionStrength = Find("_InteractionStrength", properties);
-        MaterialProperty interactionRadiusMultiplier = Find("_InteractionRadiusMultiplier", properties);
-        MaterialProperty interactionFlatten = Find("_InteractionFlatten", properties);
-        MaterialProperty interactionPushAway = Find("_InteractionPushAway", properties);
-        MaterialProperty interactionTrail = Find("_InteractionTrail", properties);
-        MaterialProperty interactionVerticalRange = Find("_InteractionVerticalRange", properties);
-
-        MaterialProperty enableTrailMap = Find("_EnableTrailMap", properties);
-        MaterialProperty trailMapInfluence = Find("_TrailMapInfluence", properties);
-        MaterialProperty trailMapFlatten = Find("_TrailMapFlatten", properties);
-        MaterialProperty trailMapDarken = Find("_TrailMapDarken", properties);
-        MaterialProperty trailMapSharpness = Find("_TrailMapSharpness", properties);
+        MaterialProperty windTextureScale = Find("_WindTextureScale", properties);
+        MaterialProperty windTextureScrollSpeed = Find("_WindTextureScrollSpeed", properties);
+        MaterialProperty windTextureContrast = Find("_WindTextureContrast", properties);
+        MaterialProperty windTextureInfluence = Find("_WindTextureInfluence", properties);
+        MaterialProperty windTextureWaveInfluence = Find("_WindTextureWaveInfluence", properties);
 
         MaterialProperty nearColor = Find("_NearColor", properties);
         MaterialProperty farColor = Find("_FarColor", properties);
@@ -92,78 +46,36 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         MaterialProperty useTerrainColor = Find("_UseTerrainColor", properties);
         MaterialProperty terrainColor = Find("_TerrainColor", properties);
 
-        DrawCommon(materialEditor, ref s_ShowCommon, baseMap, baseColor, cutoff, windTexture, windSpeed, windStrength, windDirection);
-        DrawWindShape(materialEditor, ref s_ShowWindShape, enableMacroWave, waveFrequency, waveSharpness, macroWaveStrength, sideVariation);
-        DrawGustFront(
+        DrawCommon(materialEditor, ref s_ShowCommon, baseMap, baseColor, cutoff, windTexture, windSpeed, windDirection);
+        DrawWindShape(
             materialEditor,
-            ref s_ShowGustFront,
-            enableWave,
-            gustFrontStrength,
-            gustFrontSpeed,
-            gustFrontSpacing,
-            gustFrontWidth,
-            gustFrontTrail,
-            gustFrontCurvature,
-            gustFrontOverlap,
-            gustFrontBreakup,
-            gustFrontWarp,
-            gustFrontLateralScale);
-        DrawWindNoise(
+            ref s_ShowWindShape,
+            enableWaveShape,
+            waveFrequency,
+            waveSpacingVariation,
+            waveSpeed,
+            waveStrength,
+            waveBodyInfluence,
+            waveTipInfluence,
+            waveLateralInfluence);
+        DrawWindTexture(
             materialEditor,
-            ref s_ShowWindNoise,
-            enableNoiseField,
-            windNoiseScale,
-            windNoiseSpeed,
-            windNoiseContrast,
-            noiseFieldInfluence);
-        DrawBladeBend(
-            materialEditor,
-            ref s_ShowBladeBend,
-            windScale,
-            topBend,
-            stemBend,
-            windHeight,
-            downBend,
-            enableFlutter,
-            detailStrength,
-            flutterSpeed);
-        DrawInteraction(
-            materialEditor,
-            ref s_ShowInteraction,
-            enableInteraction,
-            interactionStrength,
-            interactionRadiusMultiplier,
-            interactionFlatten,
-            interactionPushAway,
-            interactionTrail,
-            interactionVerticalRange);
-        DrawPersistentTrail(
-            materialEditor,
-            ref s_ShowPersistentTrail,
-            enableTrailMap,
-            trailMapInfluence,
-            trailMapFlatten,
-            trailMapDarken,
-            trailMapSharpness);
+            ref s_ShowWindTexture,
+            windTextureScale,
+            windTextureScrollSpeed,
+            windTextureContrast,
+            windTextureInfluence,
+            windTextureWaveInfluence);
         DrawColor(materialEditor, ref s_ShowColor, nearColor, farColor, nearFarRange, bottomColor, heightBlend);
         DrawTerrain(materialEditor, ref s_ShowTerrain, useTerrainColor, terrainColor);
         DrawBakeTools(materialEditor);
     }
 
-    /// <summary>
-    /// Finds a material property safely.
-    /// </summary>
-    /// <param name="name">Property name in shader.</param>
-    /// <param name="properties">All shader properties.</param>
-    /// <returns>The material property.</returns>
     private static MaterialProperty Find(string name, MaterialProperty[] properties)
     {
         return FindProperty(name, properties, false);
     }
 
-    /// <summary>
-    /// Draws the common section.
-    /// </summary>
     private static void DrawCommon(
         MaterialEditor materialEditor,
         ref bool foldout,
@@ -172,213 +84,121 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         MaterialProperty cutoff,
         MaterialProperty windTexture,
         MaterialProperty windSpeed,
-        MaterialProperty windStrength,
         MaterialProperty windDirection)
     {
         foldout = EditorGUILayout.BeginFoldoutHeaderGroup(foldout, "Common");
         if (foldout)
         {
-            materialEditor.TexturePropertySingleLine(new GUIContent("Base Map"), baseMap, baseColor);
-            materialEditor.TexturePropertySingleLine(new GUIContent("Wind Texture"), windTexture);
-            materialEditor.ShaderProperty(cutoff, "Alpha Cutoff");
-            materialEditor.ShaderProperty(windSpeed, "Wind Speed");
-            materialEditor.ShaderProperty(windStrength, "Wind Strength");
-            DrawNormalizedDirection2D(windDirection, "Wind Direction");
+            materialEditor.TexturePropertySingleLine(
+                MakeLabel("Base Map", "Texture màu gốc của cỏ. Alpha của texture quyết định vùng nào bị cắt bởi Alpha Cutoff."),
+                baseMap);
+            materialEditor.ShaderProperty(
+                baseColor,
+                MakeLabel("Base Color", "Màu nhân thêm lên Base Map. Có thể dùng để chỉnh tông tổng thể của cỏ."));
+            materialEditor.TexturePropertySingleLine(
+                MakeLabel("Wind Texture", "Texture mô tả hình dạng trường gió. Vùng sáng/tối trong texture quyết định chỗ nào cỏ ngả mạnh hay nhẹ."),
+                windTexture);
+            materialEditor.ShaderProperty(
+                cutoff,
+                MakeLabel("Alpha Cutoff", "Ngưỡng cắt alpha. Tăng giá trị này thì lá cỏ sẽ mỏng hơn vì nhiều pixel bị loại bỏ hơn."));
+            materialEditor.ShaderProperty(
+                windSpeed,
+                MakeLabel("Grass Lean", "Độ ngả nền của cỏ theo hướng gió. Giá trị này không làm cỏ tự dao động, chỉ quyết định mức nghiêng tổng thể."));
+            DrawNormalizedDirection2D(
+                windDirection,
+                MakeLabel("Wind Direction (XZ)", "Hướng gió toàn cục trên mặt phẳng XZ. Tất cả bụi cỏ sẽ cùng đổ theo hướng này."));
+            EditorGUILayout.HelpBox(
+                "Grass Lean chỉ điều khiển độ ngả nền. Cỏ chỉ dao động khi bạn bật Wave Shape hoặc cho Wind Texture chạy bằng Scroll Speed.",
+                MessageType.None);
             EditorGUILayout.Space(4);
         }
+
         EditorGUILayout.EndFoldoutHeaderGroup();
     }
 
-    /// <summary>
-    /// Draws wave shape controls.
-    /// </summary>
     private static void DrawWindShape(
         MaterialEditor materialEditor,
         ref bool foldout,
-        MaterialProperty enableMacroWave,
+        MaterialProperty enableWaveShape,
         MaterialProperty waveFrequency,
-        MaterialProperty waveSharpness,
-        MaterialProperty macroWaveStrength,
-        MaterialProperty sideVariation)
+        MaterialProperty waveSpacingVariation,
+        MaterialProperty waveSpeed,
+        MaterialProperty waveStrength,
+        MaterialProperty waveBodyInfluence,
+        MaterialProperty waveTipInfluence,
+        MaterialProperty waveLateralInfluence)
     {
         foldout = EditorGUILayout.BeginFoldoutHeaderGroup(foldout, "Wind Shape");
         if (foldout)
         {
-            materialEditor.ShaderProperty(enableMacroWave, "Enable Macro Wave");
-            EditorGUI.BeginDisabledGroup(enableMacroWave.floatValue < 0.5f);
-            materialEditor.ShaderProperty(waveFrequency, "Wave Frequency");
-            materialEditor.ShaderProperty(waveSharpness, "Wave Sharpness");
-            materialEditor.ShaderProperty(macroWaveStrength, "Ocean Swell");
-            materialEditor.ShaderProperty(sideVariation, "Side Variation");
+            materialEditor.ShaderProperty(
+                enableWaveShape,
+                MakeLabel("Enable Wave Motion", "Bật hoặc tắt lớp dao động dạng sóng. Tắt đi thì chỉ còn độ ngả nền và ảnh hưởng từ Wind Texture."));
+            EditorGUI.BeginDisabledGroup(enableWaveShape.floatValue < 0.5f);
+            materialEditor.ShaderProperty(
+                waveFrequency,
+                MakeLabel("Wave Frequency", "Mật độ sóng theo chiều gió. Giá trị cao tạo nhiều gợn sóng hơn trên cùng một khoảng cách."));
+            materialEditor.ShaderProperty(
+                waveSpacingVariation,
+                MakeLabel("Wave Spacing Variation", "Độ lệch không đều giữa các bước sóng. Tăng lên để các dải sóng tách ra dày thưa khác nhau thay vì lặp quá đều."));
+            materialEditor.ShaderProperty(
+                waveSpeed,
+                MakeLabel("Wave Speed", "Tốc độ di chuyển của sóng dọc theo hướng gió."));
+            materialEditor.ShaderProperty(
+                waveStrength,
+                MakeLabel("Wave Strength", "Cường độ tổng của lớp sóng. Tăng lên để dao động thấy rõ hơn."));
+            materialEditor.ShaderProperty(
+                waveBodyInfluence,
+                MakeLabel("Body Wave", "Mức ảnh hưởng của sóng lên phần thân cỏ. Tăng lên thì cả thân cùng lượn nhiều hơn."));
+            materialEditor.ShaderProperty(
+                waveTipInfluence,
+                MakeLabel("Tip Wave", "Mức ảnh hưởng của sóng lên đầu ngọn cỏ. Tăng lên thì phần ngọn rung/lượn rõ hơn phần gốc."));
+            materialEditor.ShaderProperty(
+                waveLateralInfluence,
+                MakeLabel("Lateral Wave", "Lượng lệch ngang của sóng sang hai bên, giúp chuyển động bớt cứng và đỡ một chiều."));
             EditorGUI.EndDisabledGroup();
             EditorGUILayout.Space(4);
         }
+
         EditorGUILayout.EndFoldoutHeaderGroup();
     }
 
-    /// <summary>
-    /// Draws gust-front controls.
-    /// </summary>
-    private static void DrawGustFront(
+    private static void DrawWindTexture(
         MaterialEditor materialEditor,
         ref bool foldout,
-        MaterialProperty enableWave,
-        MaterialProperty gustFrontStrength,
-        MaterialProperty gustFrontSpeed,
-        MaterialProperty gustFrontSpacing,
-        MaterialProperty gustFrontWidth,
-        MaterialProperty gustFrontTrail,
-        MaterialProperty gustFrontCurvature,
-        MaterialProperty gustFrontOverlap,
-        MaterialProperty gustFrontBreakup,
-        MaterialProperty gustFrontWarp,
-        MaterialProperty gustFrontLateralScale)
+        MaterialProperty windTextureScale,
+        MaterialProperty windTextureScrollSpeed,
+        MaterialProperty windTextureContrast,
+        MaterialProperty windTextureInfluence,
+        MaterialProperty windTextureWaveInfluence)
     {
-        foldout = EditorGUILayout.BeginFoldoutHeaderGroup(foldout, "Gust Front");
+        foldout = EditorGUILayout.BeginFoldoutHeaderGroup(foldout, "Wind Texture");
         if (foldout)
         {
-            materialEditor.ShaderProperty(enableWave, "Enable Gust Front");
-            EditorGUI.BeginDisabledGroup(enableWave.floatValue < 0.5f);
-            materialEditor.ShaderProperty(gustFrontStrength, "Impact Strength");
-            materialEditor.ShaderProperty(gustFrontSpeed, "Travel Speed");
-            materialEditor.ShaderProperty(gustFrontSpacing, "Front Spacing");
-            materialEditor.ShaderProperty(gustFrontWidth, "Wave Width");
-            materialEditor.ShaderProperty(gustFrontTrail, "Recovery Tail");
-            materialEditor.ShaderProperty(gustFrontCurvature, "Wave Curvature");
-            materialEditor.ShaderProperty(gustFrontOverlap, "Front Overlap");
-            materialEditor.ShaderProperty(gustFrontBreakup, "Breakup");
-            materialEditor.ShaderProperty(gustFrontWarp, "Front Warp");
-            materialEditor.ShaderProperty(gustFrontLateralScale, "Lane Scale");
-            EditorGUI.EndDisabledGroup();
-            EditorGUILayout.Space(4);
-        }
-        EditorGUILayout.EndFoldoutHeaderGroup();
-    }
-
-    /// <summary>
-    /// Draws wind noise controls.
-    /// </summary>
-    private static void DrawWindNoise(
-        MaterialEditor materialEditor,
-        ref bool foldout,
-        MaterialProperty enableNoiseField,
-        MaterialProperty windNoiseScale,
-        MaterialProperty windNoiseSpeed,
-        MaterialProperty windNoiseContrast,
-        MaterialProperty noiseFieldInfluence)
-    {
-        foldout = EditorGUILayout.BeginFoldoutHeaderGroup(foldout, "Wind Noise");
-        if (foldout)
-        {
-            materialEditor.ShaderProperty(enableNoiseField, "Enable Noise Field");
-            EditorGUI.BeginDisabledGroup(enableNoiseField.floatValue < 0.5f);
-            materialEditor.ShaderProperty(windNoiseScale, "Noise Scale");
-            materialEditor.ShaderProperty(windNoiseSpeed, "Noise Speed");
-            materialEditor.ShaderProperty(windNoiseContrast, "Noise Contrast");
-            materialEditor.ShaderProperty(noiseFieldInfluence, "Field Influence");
-            EditorGUI.EndDisabledGroup();
-            EditorGUILayout.Space(4);
-        }
-        EditorGUILayout.EndFoldoutHeaderGroup();
-    }
-
-    /// <summary>
-    /// Draws blade bend controls.
-    /// </summary>
-    private static void DrawBladeBend(
-        MaterialEditor materialEditor,
-        ref bool foldout,
-        MaterialProperty windScale,
-        MaterialProperty topBend,
-        MaterialProperty stemBend,
-        MaterialProperty windHeight,
-        MaterialProperty downBend,
-        MaterialProperty enableFlutter,
-        MaterialProperty detailStrength,
-        MaterialProperty flutterSpeed)
-    {
-        foldout = EditorGUILayout.BeginFoldoutHeaderGroup(foldout, "Blade Bend");
-        if (foldout)
-        {
-            materialEditor.ShaderProperty(topBend, "Tip Weight");
-            materialEditor.ShaderProperty(stemBend, "Stem Flex");
-            materialEditor.ShaderProperty(windHeight, "Wind Height");
-            materialEditor.ShaderProperty(downBend, "Down Bend");
-            materialEditor.ShaderProperty(windScale, "Flutter Scale");
-            materialEditor.ShaderProperty(enableFlutter, "Enable Tip Flutter");
-            EditorGUI.BeginDisabledGroup(enableFlutter.floatValue < 0.5f);
-            materialEditor.ShaderProperty(detailStrength, "Tip Flutter");
-            materialEditor.ShaderProperty(flutterSpeed, "Flutter Speed");
-            EditorGUI.EndDisabledGroup();
-            EditorGUILayout.Space(4);
-        }
-        EditorGUILayout.EndFoldoutHeaderGroup();
-    }
-
-    /// <summary>
-    /// Draws object interaction controls.
-    /// </summary>
-    private static void DrawInteraction(
-        MaterialEditor materialEditor,
-        ref bool foldout,
-        MaterialProperty enableInteraction,
-        MaterialProperty interactionStrength,
-        MaterialProperty interactionRadiusMultiplier,
-        MaterialProperty interactionFlatten,
-        MaterialProperty interactionPushAway,
-        MaterialProperty interactionTrail,
-        MaterialProperty interactionVerticalRange)
-    {
-        foldout = EditorGUILayout.BeginFoldoutHeaderGroup(foldout, "Interaction");
-        if (foldout)
-        {
-            materialEditor.ShaderProperty(enableInteraction, "Enable Object Interaction");
-            EditorGUI.BeginDisabledGroup(enableInteraction.floatValue < 0.5f);
-            materialEditor.ShaderProperty(interactionStrength, "Bend Strength");
-            materialEditor.ShaderProperty(interactionRadiusMultiplier, "Radius Multiplier");
-            materialEditor.ShaderProperty(interactionFlatten, "Flatten");
-            materialEditor.ShaderProperty(interactionPushAway, "Push Away");
-            materialEditor.ShaderProperty(interactionTrail, "Trail");
-            materialEditor.ShaderProperty(interactionVerticalRange, "Vertical Range");
-            EditorGUI.EndDisabledGroup();
-            EditorGUILayout.Space(4);
-        }
-        EditorGUILayout.EndFoldoutHeaderGroup();
-    }
-
-    /// <summary>
-    /// Draws persistent trail controls.
-    /// </summary>
-    private static void DrawPersistentTrail(
-        MaterialEditor materialEditor,
-        ref bool foldout,
-        MaterialProperty enableTrailMap,
-        MaterialProperty trailMapInfluence,
-        MaterialProperty trailMapFlatten,
-        MaterialProperty trailMapDarken,
-        MaterialProperty trailMapSharpness)
-    {
-        foldout = EditorGUILayout.BeginFoldoutHeaderGroup(foldout, "Persistent Trail");
-        if (foldout)
-        {
-            materialEditor.ShaderProperty(enableTrailMap, "Enable Persistent Trail");
-            EditorGUI.BeginDisabledGroup(enableTrailMap.floatValue < 0.5f);
-            materialEditor.ShaderProperty(trailMapInfluence, "Trail Influence");
-            materialEditor.ShaderProperty(trailMapFlatten, "Trail Flatten");
-            materialEditor.ShaderProperty(trailMapDarken, "Trail Darken");
-            materialEditor.ShaderProperty(trailMapSharpness, "Trail Sharpness");
-            EditorGUI.EndDisabledGroup();
+            materialEditor.ShaderProperty(
+                windTextureScale,
+                MakeLabel("Texture Scale", "Tỉ lệ world-space của Wind Texture. Giá trị lớn làm pattern rộng hơn, giá trị nhỏ làm pattern dày hơn."));
+            materialEditor.ShaderProperty(
+                windTextureScrollSpeed,
+                MakeLabel("Texture Scroll Speed", "Tốc độ trôi của trường gió theo hướng gió. Dùng để tạo cảm giác các dải gió đang quét qua đồng cỏ."));
+            materialEditor.ShaderProperty(
+                windTextureContrast,
+                MakeLabel("Texture Contrast", "Khoảng remap sáng/tối của Wind Texture. Siết khoảng này để tăng độ phân biệt giữa vùng gió mạnh và nhẹ."));
+            materialEditor.ShaderProperty(
+                windTextureInfluence,
+                MakeLabel("Lean Influence", "Mức độ Wind Texture ảnh hưởng tới độ ngả nền. 0 là bỏ qua texture, 1 là dùng texture đầy đủ."));
+            materialEditor.ShaderProperty(
+                windTextureWaveInfluence,
+                MakeLabel("Wave Influence", "Mức độ Wind Texture tham gia điều chế lớp sóng. Tăng lên để sóng đi theo pattern của texture nhiều hơn."));
             EditorGUILayout.HelpBox(
-                "The trail map is generated automatically from moving Grass Interaction Sources. Add Grass Trail Settings in the scene if you want to tune fade time or bounds.",
+                "Wind Texture bây giờ là trường gió chính. Wind Direction xoay hệ sample của texture, còn Scroll Speed làm pattern gió di chuyển xuyên qua thảm cỏ.",
                 MessageType.None);
             EditorGUILayout.Space(4);
         }
+
         EditorGUILayout.EndFoldoutHeaderGroup();
     }
 
-    /// <summary>
-    /// Draws color controls.
-    /// </summary>
     private static void DrawColor(
         MaterialEditor materialEditor,
         ref bool foldout,
@@ -391,19 +211,27 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         foldout = EditorGUILayout.BeginFoldoutHeaderGroup(foldout, "Color");
         if (foldout)
         {
-            materialEditor.ShaderProperty(nearColor, "Near Color");
-            materialEditor.ShaderProperty(farColor, "Far Color");
-            materialEditor.ShaderProperty(nearFarRange, "Near/Far Range");
-            materialEditor.ShaderProperty(bottomColor, "Bottom Color");
-            materialEditor.ShaderProperty(heightBlend, "Height Blend");
+            materialEditor.ShaderProperty(
+                nearColor,
+                MakeLabel("Near Color", "Màu áp cho cỏ ở gần camera."));
+            materialEditor.ShaderProperty(
+                farColor,
+                MakeLabel("Far Color", "Màu áp cho cỏ ở xa camera. Dùng để giảm chói hoặc đồng nhất màu ở xa."));
+            materialEditor.ShaderProperty(
+                nearFarRange,
+                MakeLabel("Near/Far Range", "Khoảng cách bắt đầu và kết thúc việc chuyển màu từ Near Color sang Far Color."));
+            materialEditor.ShaderProperty(
+                bottomColor,
+                MakeLabel("Bottom Tint", "Màu nhuộm ở phần gốc cỏ."));
+            materialEditor.ShaderProperty(
+                heightBlend,
+                MakeLabel("Height Blend", "Độ chuyển màu từ gốc lên ngọn. Giá trị lớn làm màu gốc chuyển sang màu ngọn nhanh hơn."));
             EditorGUILayout.Space(4);
         }
+
         EditorGUILayout.EndFoldoutHeaderGroup();
     }
 
-    /// <summary>
-    /// Draws terrain blending controls.
-    /// </summary>
     private static void DrawTerrain(
         MaterialEditor materialEditor,
         ref bool foldout,
@@ -413,21 +241,22 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         foldout = EditorGUILayout.BeginFoldoutHeaderGroup(foldout, "Terrain");
         if (foldout)
         {
-            materialEditor.ShaderProperty(useTerrainColor, "Use Terrain Color");
+            materialEditor.ShaderProperty(
+                useTerrainColor,
+                MakeLabel("Use Terrain Color", "Bật để nhân thêm màu terrain lên cỏ, giúp cỏ hòa màu với nền đất."));
             if (useTerrainColor.floatValue > 0.5f)
             {
-                materialEditor.ShaderProperty(terrainColor, "Terrain Color");
+                materialEditor.ShaderProperty(
+                    terrainColor,
+                    MakeLabel("Terrain Color", "Màu terrain được nhân thêm lên cỏ khi Use Terrain Color đang bật."));
             }
 
             EditorGUILayout.Space(4);
         }
+
         EditorGUILayout.EndFoldoutHeaderGroup();
     }
 
-    /// <summary>
-    /// Draws one-click tools for syncing material values back into shader defaults.
-    /// </summary>
-    /// <param name="materialEditor">Active material editor.</param>
     private static void DrawBakeTools(MaterialEditor materialEditor)
     {
         EditorGUILayout.Space(6);
@@ -448,7 +277,7 @@ public sealed class GrassWindShaderGUI : ShaderGUI
 
         if (!singleMaterialSelected)
         {
-            EditorGUILayout.HelpBox("Select exactly one material to bake shader defaults.", MessageType.None);
+            EditorGUILayout.HelpBox("Hãy chọn đúng một material nếu muốn ghi các giá trị hiện tại về mặc định của shader.", MessageType.None);
             return;
         }
 
@@ -459,16 +288,11 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         }
 
         EditorGUILayout.HelpBox(
-            "This writes float/color/vector defaults into the .shader file and syncs texture defaults through ShaderImporter. Texture scale/offset stays material-only.",
+            "Công cụ này sẽ ghi các giá trị float/color/vector hiện tại vào file .shader làm mặc định, đồng thời đồng bộ texture mặc định qua ShaderImporter. Scale/offset của texture vẫn chỉ nằm ở material.",
             MessageType.None);
     }
 
-    /// <summary>
-    /// Draws a normalized 2D direction field backed by a Vector4 property.
-    /// </summary>
-    /// <param name="property">Shader vector property.</param>
-    /// <param name="label">Displayed label.</param>
-    private static void DrawNormalizedDirection2D(MaterialProperty property, string label)
+    private static void DrawNormalizedDirection2D(MaterialProperty property, GUIContent label)
     {
         Vector4 v = property.vectorValue;
         Vector2 dir = new Vector2(v.x, v.y);
@@ -488,5 +312,10 @@ public sealed class GrassWindShaderGUI : ShaderGUI
 
             property.vectorValue = new Vector4(dir.x, dir.y, 0f, 0f);
         }
+    }
+
+    private static GUIContent MakeLabel(string text, string tooltip)
+    {
+        return new GUIContent(text, tooltip);
     }
 }

@@ -43,11 +43,6 @@ public sealed class PlayerControllerSimple : MonoBehaviour
     {
         characterController = GetComponent<CharacterController>();
 
-        if (!TryGetComponent(out GrassInteractionSource _))
-        {
-            gameObject.AddComponent<GrassInteractionSource>();
-        }
-
         if (cameraTransform == null && Camera.main != null)
         {
             cameraTransform = Camera.main.transform;
