@@ -30,6 +30,8 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         MaterialProperty cutoff = Find("_Cutoff", properties);
 
         MaterialProperty windTexture = Find("_WindTexture", properties);
+        MaterialProperty enableNoiseField = Find("_EnableNoiseField", properties);
+        MaterialProperty enableMacroWave = Find("_EnableMacroWave", properties);
         MaterialProperty enableWave = Find("_EnableWave", properties);
         MaterialProperty windSpeed = Find("_WindSpeed", properties);
         MaterialProperty windStrength = Find("_WindStrength", properties);
@@ -55,11 +57,13 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         MaterialProperty windNoiseScale = Find("_WindNoiseScale", properties);
         MaterialProperty windNoiseSpeed = Find("_WindNoiseSpeed", properties);
         MaterialProperty windNoiseContrast = Find("_WindNoiseContrast", properties);
+        MaterialProperty noiseFieldInfluence = Find("_NoiseFieldInfluence", properties);
 
         MaterialProperty topBend = Find("_TopBend", properties);
         MaterialProperty stemBend = Find("_StemBend", properties);
         MaterialProperty windHeight = Find("_WindHeight", properties);
         MaterialProperty downBend = Find("_DownBend", properties);
+        MaterialProperty enableFlutter = Find("_EnableFlutter", properties);
         MaterialProperty detailStrength = Find("_DetailStrength", properties);
         MaterialProperty flutterSpeed = Find("_FlutterSpeed", properties);
 
@@ -72,11 +76,12 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         MaterialProperty useTerrainColor = Find("_UseTerrainColor", properties);
         MaterialProperty terrainColor = Find("_TerrainColor", properties);
 
-        DrawCommon(materialEditor, ref s_ShowCommon, baseMap, baseColor, cutoff, windTexture, enableWave, windSpeed, windStrength, windDirection);
-        DrawWindShape(materialEditor, ref s_ShowWindShape, waveFrequency, waveSharpness, macroWaveStrength, sideVariation);
+        DrawCommon(materialEditor, ref s_ShowCommon, baseMap, baseColor, cutoff, windTexture, windSpeed, windStrength, windDirection);
+        DrawWindShape(materialEditor, ref s_ShowWindShape, enableMacroWave, waveFrequency, waveSharpness, macroWaveStrength, sideVariation);
         DrawGustFront(
             materialEditor,
             ref s_ShowGustFront,
+            enableWave,
             gustFrontStrength,
             gustFrontSpeed,
             gustFrontSpacing,
@@ -87,8 +92,25 @@ public sealed class GrassWindShaderGUI : ShaderGUI
             gustFrontBreakup,
             gustFrontWarp,
             gustFrontLateralScale);
-        DrawWindNoise(materialEditor, ref s_ShowWindNoise, windScale, windNoiseScale, windNoiseSpeed, windNoiseContrast);
-        DrawBladeBend(materialEditor, ref s_ShowBladeBend, topBend, stemBend, windHeight, downBend, detailStrength, flutterSpeed);
+        DrawWindNoise(
+            materialEditor,
+            ref s_ShowWindNoise,
+            enableNoiseField,
+            windNoiseScale,
+            windNoiseSpeed,
+            windNoiseContrast,
+            noiseFieldInfluence);
+        DrawBladeBend(
+            materialEditor,
+            ref s_ShowBladeBend,
+            windScale,
+            topBend,
+            stemBend,
+            windHeight,
+            downBend,
+            enableFlutter,
+            detailStrength,
+            flutterSpeed);
         DrawColor(materialEditor, ref s_ShowColor, nearColor, farColor, nearFarRange, bottomColor, heightBlend);
         DrawTerrain(materialEditor, ref s_ShowTerrain, useTerrainColor, terrainColor);
     }
@@ -114,7 +136,6 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         MaterialProperty baseColor,
         MaterialProperty cutoff,
         MaterialProperty windTexture,
-        MaterialProperty enableWave,
         MaterialProperty windSpeed,
         MaterialProperty windStrength,
         MaterialProperty windDirection)
@@ -125,7 +146,6 @@ public sealed class GrassWindShaderGUI : ShaderGUI
             materialEditor.TexturePropertySingleLine(new GUIContent("Base Map"), baseMap, baseColor);
             materialEditor.TexturePropertySingleLine(new GUIContent("Wind Texture"), windTexture);
             materialEditor.ShaderProperty(cutoff, "Alpha Cutoff");
-            materialEditor.ShaderProperty(enableWave, "Enable Wave");
             materialEditor.ShaderProperty(windSpeed, "Wind Speed");
             materialEditor.ShaderProperty(windStrength, "Wind Strength");
             DrawNormalizedDirection2D(windDirection, "Wind Direction");
@@ -140,6 +160,7 @@ public sealed class GrassWindShaderGUI : ShaderGUI
     private static void DrawWindShape(
         MaterialEditor materialEditor,
         ref bool foldout,
+        MaterialProperty enableMacroWave,
         MaterialProperty waveFrequency,
         MaterialProperty waveSharpness,
         MaterialProperty macroWaveStrength,
@@ -148,10 +169,13 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         foldout = EditorGUILayout.BeginFoldoutHeaderGroup(foldout, "Wind Shape");
         if (foldout)
         {
+            materialEditor.ShaderProperty(enableMacroWave, "Enable Macro Wave");
+            EditorGUI.BeginDisabledGroup(enableMacroWave.floatValue < 0.5f);
             materialEditor.ShaderProperty(waveFrequency, "Wave Frequency");
             materialEditor.ShaderProperty(waveSharpness, "Wave Sharpness");
             materialEditor.ShaderProperty(macroWaveStrength, "Ocean Swell");
             materialEditor.ShaderProperty(sideVariation, "Side Variation");
+            EditorGUI.EndDisabledGroup();
             EditorGUILayout.Space(4);
         }
         EditorGUILayout.EndFoldoutHeaderGroup();
@@ -163,6 +187,7 @@ public sealed class GrassWindShaderGUI : ShaderGUI
     private static void DrawGustFront(
         MaterialEditor materialEditor,
         ref bool foldout,
+        MaterialProperty enableWave,
         MaterialProperty gustFrontStrength,
         MaterialProperty gustFrontSpeed,
         MaterialProperty gustFrontSpacing,
@@ -177,6 +202,8 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         foldout = EditorGUILayout.BeginFoldoutHeaderGroup(foldout, "Gust Front");
         if (foldout)
         {
+            materialEditor.ShaderProperty(enableWave, "Enable Gust Front");
+            EditorGUI.BeginDisabledGroup(enableWave.floatValue < 0.5f);
             materialEditor.ShaderProperty(gustFrontStrength, "Impact Strength");
             materialEditor.ShaderProperty(gustFrontSpeed, "Travel Speed");
             materialEditor.ShaderProperty(gustFrontSpacing, "Front Spacing");
@@ -187,6 +214,7 @@ public sealed class GrassWindShaderGUI : ShaderGUI
             materialEditor.ShaderProperty(gustFrontBreakup, "Breakup");
             materialEditor.ShaderProperty(gustFrontWarp, "Front Warp");
             materialEditor.ShaderProperty(gustFrontLateralScale, "Lane Scale");
+            EditorGUI.EndDisabledGroup();
             EditorGUILayout.Space(4);
         }
         EditorGUILayout.EndFoldoutHeaderGroup();
@@ -198,18 +226,22 @@ public sealed class GrassWindShaderGUI : ShaderGUI
     private static void DrawWindNoise(
         MaterialEditor materialEditor,
         ref bool foldout,
-        MaterialProperty windScale,
+        MaterialProperty enableNoiseField,
         MaterialProperty windNoiseScale,
         MaterialProperty windNoiseSpeed,
-        MaterialProperty windNoiseContrast)
+        MaterialProperty windNoiseContrast,
+        MaterialProperty noiseFieldInfluence)
     {
         foldout = EditorGUILayout.BeginFoldoutHeaderGroup(foldout, "Wind Noise");
         if (foldout)
         {
-            materialEditor.ShaderProperty(windScale, "Detail Scale");
+            materialEditor.ShaderProperty(enableNoiseField, "Enable Noise Field");
+            EditorGUI.BeginDisabledGroup(enableNoiseField.floatValue < 0.5f);
             materialEditor.ShaderProperty(windNoiseScale, "Noise Scale");
             materialEditor.ShaderProperty(windNoiseSpeed, "Noise Speed");
             materialEditor.ShaderProperty(windNoiseContrast, "Noise Contrast");
+            materialEditor.ShaderProperty(noiseFieldInfluence, "Field Influence");
+            EditorGUI.EndDisabledGroup();
             EditorGUILayout.Space(4);
         }
         EditorGUILayout.EndFoldoutHeaderGroup();
@@ -221,10 +253,12 @@ public sealed class GrassWindShaderGUI : ShaderGUI
     private static void DrawBladeBend(
         MaterialEditor materialEditor,
         ref bool foldout,
+        MaterialProperty windScale,
         MaterialProperty topBend,
         MaterialProperty stemBend,
         MaterialProperty windHeight,
         MaterialProperty downBend,
+        MaterialProperty enableFlutter,
         MaterialProperty detailStrength,
         MaterialProperty flutterSpeed)
     {
@@ -235,8 +269,12 @@ public sealed class GrassWindShaderGUI : ShaderGUI
             materialEditor.ShaderProperty(stemBend, "Stem Flex");
             materialEditor.ShaderProperty(windHeight, "Wind Height");
             materialEditor.ShaderProperty(downBend, "Down Bend");
+            materialEditor.ShaderProperty(windScale, "Flutter Scale");
+            materialEditor.ShaderProperty(enableFlutter, "Enable Tip Flutter");
+            EditorGUI.BeginDisabledGroup(enableFlutter.floatValue < 0.5f);
             materialEditor.ShaderProperty(detailStrength, "Tip Flutter");
             materialEditor.ShaderProperty(flutterSpeed, "Flutter Speed");
+            EditorGUI.EndDisabledGroup();
             EditorGUILayout.Space(4);
         }
         EditorGUILayout.EndFoldoutHeaderGroup();

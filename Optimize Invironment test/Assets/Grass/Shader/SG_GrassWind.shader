@@ -13,7 +13,9 @@ Shader "Custom/Vit/GrassWind_URP"
         _WindSpeed ("Wind Speed", Range(0,10)) = 0.72
         _WindStrength ("Wind Strength", Range(0,1)) = 0.22
         _WindDirection ("Wind Direction XZ", Vector) = (0.92,0.30,0,0)
-        [Toggle] _EnableWave ("Enable Wave", Float) = 1
+        [Toggle] _EnableNoiseField ("Enable Noise Field", Float) = 1
+        [Toggle] _EnableMacroWave ("Enable Macro Wave", Float) = 1
+        [Toggle] _EnableWave ("Enable Gust Front", Float) = 1
 
         // ================================================================
         // Wind Shape - Advanced
@@ -44,6 +46,7 @@ Shader "Custom/Vit/GrassWind_URP"
         [HideInInspector] _WindNoiseScale ("Wind Noise Scale", Vector) = (34,52,0,0)
         [HideInInspector] _WindNoiseSpeed ("Wind Noise Speed", Range(0,5)) = 0.22
         [HideInInspector] _WindNoiseContrast ("Wind Noise Contrast", Vector) = (0.26,0.82,0,0)
+        [HideInInspector] _NoiseFieldInfluence ("Noise Field Influence", Range(0,1)) = 0.4
 
         // ================================================================
         // Blade Bend - Advanced
@@ -52,6 +55,7 @@ Shader "Custom/Vit/GrassWind_URP"
         [HideInInspector] _StemBend ("Stem Bend", Range(0,1)) = 0.45
         [HideInInspector] _WindHeight ("Wind Height", Range(0,1)) = 0.84
         [HideInInspector] _DownBend ("Down Bend", Range(0,1)) = 0.14
+        [HideInInspector] _EnableFlutter ("Enable Flutter", Float) = 1
         [HideInInspector] _DetailStrength ("Detail Strength", Range(0,1)) = 0.06
         [HideInInspector] _FlutterSpeed ("Flutter Speed", Range(0,10)) = 1.65
 
@@ -137,6 +141,9 @@ Shader "Custom/Vit/GrassWind_URP"
                 float4 _BaseColor;
                 float _Cutoff;
                 float _EnableWave;
+                float _EnableNoiseField;
+                float _EnableMacroWave;
+                float _EnableFlutter;
                 float _WindStrength;
                 float _WindSpeed;
                 float _WindScale;
@@ -172,6 +179,7 @@ Shader "Custom/Vit/GrassWind_URP"
                 float4 _WindNoiseScale;
                 float _WindNoiseSpeed;
                 float4 _WindNoiseContrast;
+                float _NoiseFieldInfluence;
                 float _WindHeight;
                 float _GustFrontTrail;
                 float _GustFrontWarp;
@@ -281,6 +289,11 @@ Shader "Custom/Vit/GrassWind_URP"
                 return SAMPLE_TEXTURE2D_LOD(_WindTexture, sampler_WindTexture, uv, 0).r;
             }
 
+            float GetToggle01(float value)
+            {
+                return step(0.5, value);
+            }
+
             float2 SampleFrontSignal(float coord, float travel, float spacing, float width, float trail)
             {
                 float phase = frac((coord - travel) / spacing);
@@ -305,6 +318,11 @@ Shader "Custom/Vit/GrassWind_URP"
 
             float SampleFrontBreakup(float2 breakupUV, float breakupAmount)
             {
+                if (_EnableNoiseField < 0.5)
+                {
+                    return 1.0;
+                }
+
                 float breakupA = SampleNoise01(breakupUV);
                 float breakupB = SampleNoise01(breakupUV * 1.91 + float2(0.37, 0.63));
                 float breakupMask = smoothstep(0.20, 0.86, breakupA * 0.62 + breakupB * 0.38);
@@ -326,13 +344,21 @@ Shader "Custom/Vit/GrassWind_URP"
 
                 // Keep front shaping anchored in world space so the wave sweeps through the grass
                 // instead of re-shaping every frame.
-                float lateralShiftA = SampleNoise01(fieldUV * 0.33 + float2(0.17, 0.29));
-                float lateralShiftB = SampleNoise01(fieldUV * 0.51 + float2(0.61, -0.13));
-                float lateralShiftC = SampleNoise01(fieldUV * 0.79 + float2(-0.24, 0.09));
+                float noiseEnabled = GetToggle01(_EnableNoiseField);
+                float lateralShiftA = 0.0;
+                float lateralShiftB = lateralScale * 0.35;
+                float lateralShiftC = -lateralScale * 0.42;
 
-                lateralShiftA = (lateralShiftA * 2.0 - 1.0) * _GustFrontWarp * 5.0;
-                lateralShiftB = (lateralShiftB * 2.0 - 1.0) * _GustFrontWarp * 3.6 + lateralScale * 0.35;
-                lateralShiftC = (lateralShiftC * 2.0 - 1.0) * _GustFrontWarp * 6.4 - lateralScale * 0.42;
+                if (noiseEnabled > 0.5)
+                {
+                    lateralShiftA = SampleNoise01(fieldUV * 0.33 + float2(0.17, 0.29));
+                    lateralShiftB = SampleNoise01(fieldUV * 0.51 + float2(0.61, -0.13));
+                    lateralShiftC = SampleNoise01(fieldUV * 0.79 + float2(-0.24, 0.09));
+
+                    lateralShiftA = (lateralShiftA * 2.0 - 1.0) * _GustFrontWarp * 5.0;
+                    lateralShiftB = (lateralShiftB * 2.0 - 1.0) * _GustFrontWarp * 3.6 + lateralScale * 0.35;
+                    lateralShiftC = (lateralShiftC * 2.0 - 1.0) * _GustFrontWarp * 6.4 - lateralScale * 0.42;
+                }
 
                 float shiftedAcrossA = across + lateralShiftA;
                 float shiftedAcrossB = across + lateralShiftB;
@@ -412,6 +438,12 @@ Shader "Custom/Vit/GrassWind_URP"
             {
                 float3 worldPos = TransformObjectToWorld(positionOS);
 
+                float noiseEnabled = GetToggle01(_EnableNoiseField);
+                float macroWaveEnabled = GetToggle01(_EnableMacroWave);
+                float gustFrontEnabled = GetToggle01(_EnableWave);
+                float flutterEnabled = GetToggle01(_EnableFlutter);
+                float noiseInfluence = saturate(_NoiseFieldInfluence) * noiseEnabled;
+
                 float2 dir = normalize(_WindDirection.xy + float2(0.0001, 0.0001));
                 float2 perp = float2(-dir.y, dir.x);
                 float2 noiseScale = max(_WindNoiseScale.xy, float2(0.001, 0.001));
@@ -426,42 +458,59 @@ Shader "Custom/Vit/GrassWind_URP"
                 // ------------------------------------------------------------
                 // 1) Domain warp
                 // ------------------------------------------------------------
-                float warpA = SampleNoise01(fieldUV * 0.55 + warpFlow + float2(0.11, 0.37));
-                float warpB = SampleNoise01(fieldUV * 0.95 + flow * 0.35 + float2(0.53, 0.07));
-                float warp = ((warpA + warpB) * 0.5 * 2.0 - 1.0) * 2.2;
+                float warp = 0.0;
+                if (noiseEnabled > 0.5)
+                {
+                    float warpA = SampleNoise01(fieldUV * 0.55 + warpFlow + float2(0.11, 0.37));
+                    float warpB = SampleNoise01(fieldUV * 0.95 + flow * 0.35 + float2(0.53, 0.07));
+                    warp = ((warpA + warpB) * 0.5 * 2.0 - 1.0) * 2.2 * noiseInfluence;
+                }
 
                 // ------------------------------------------------------------
                 // 2) Broad gust zones
                 // ------------------------------------------------------------
-                float gustNoise = SampleNoise01(fieldUV + flow + dir * warp * 0.12);
-                gustNoise = smoothstep(_WindNoiseContrast.x, max(_WindNoiseContrast.y, _WindNoiseContrast.x + 0.0001),
-                    gustNoise);
+                float gustNoise = 1.0;
+                if (noiseEnabled > 0.5)
+                {
+                    gustNoise = SampleNoise01(fieldUV + flow + dir * warp * 0.12);
+                    gustNoise = smoothstep(_WindNoiseContrast.x, max(_WindNoiseContrast.y, _WindNoiseContrast.x + 0.0001),
+                        gustNoise);
 
-                // Stronger contrast than before so wave regions are readable.
-                gustNoise = lerp(0.20, 1.25, gustNoise);
+                    // Noise now modulates the larger wave shapes instead of overpowering them.
+                    gustNoise = lerp(0.20, 1.25, gustNoise);
+                    gustNoise = lerp(1.0, gustNoise, noiseInfluence);
+                }
 
                 // ------------------------------------------------------------
                 // 3) Travelling wave front
                 // ------------------------------------------------------------
-                float curvedAlong = along - across * across * (_GustFrontCurvature * 0.35);
-                float bandPhaseA = curvedAlong * _WaveFrequency + warp * 0.36 - _Time.y * _WindSpeed;
-                float bandPhaseB =
-                    curvedAlong * (_WaveFrequency * 0.58 + 0.02) - warp * 0.24 - _Time.y * (_WindSpeed * 0.63) + 1.7;
-                float band = (sin(bandPhaseA) * 0.65 + sin(bandPhaseB) * 0.35) * 0.5 + 0.5;
+                float oceanMask = 1.0;
+                if (macroWaveEnabled > 0.5)
+                {
+                    float curvedAlong = along - across * across * (_GustFrontCurvature * 0.35);
+                    float bandPhaseA = curvedAlong * _WaveFrequency - _Time.y * _WindSpeed;
+                    float bandPhaseB =
+                        curvedAlong * (_WaveFrequency * 0.58 + 0.02) - _Time.y * (_WindSpeed * 0.63) + 1.7;
+                    float band = (sin(bandPhaseA) * 0.65 + sin(bandPhaseB) * 0.35) * 0.5 + 0.5;
 
-                float sharpT = saturate((_WaveSharpness - 1.0) / 7.0);
-                float bandMin = lerp(0.16, 0.32, sharpT);
-                float bandMax = lerp(0.70, 0.90, sharpT);
-                band = smoothstep(bandMin, bandMax, band);
+                    float sharpT = saturate((_WaveSharpness - 1.0) / 7.0);
+                    float bandMin = lerp(0.16, 0.32, sharpT);
+                    float bandMax = lerp(0.70, 0.90, sharpT);
+                    band = smoothstep(bandMin, bandMax, band);
 
-                float macroInfluence = saturate(_MacroWaveStrength);
-                float oceanMask = lerp(1.0, lerp(0.70, 1.35, band), macroInfluence);
+                    float macroInfluence = saturate(_MacroWaveStrength);
+                    oceanMask = lerp(1.0, lerp(0.70, 1.35, band), macroInfluence);
+                }
 
                 // ------------------------------------------------------------
                 // 4) Directional gust fronts
                 // ------------------------------------------------------------
-                float waveEnabled = step(0.5, _EnableWave);
-                float2 gustSignal = SampleGustFront(along, across, fieldUV, warp) * waveEnabled;
+                float2 gustSignal = float2(0.0, 0.0);
+                if (gustFrontEnabled > 0.5)
+                {
+                    gustSignal = SampleGustFront(along, across, fieldUV, warp);
+                }
+
                 float gustFront = gustSignal.x;
                 float gustWave = gustSignal.y;
 
@@ -474,13 +523,17 @@ Shader "Custom/Vit/GrassWind_URP"
                 // ------------------------------------------------------------
                 // 6) Tip flutter
                 // ------------------------------------------------------------
-                float detailScale = max(_WindScale, 0.001);
-                float flutterNoise = SampleNoise01(
-                    fieldUV * detailScale * 2.6 + flow * (_FlutterSpeed * 0.9) + float2(0.27, 0.61));
-                flutterNoise = flutterNoise * 2.0 - 1.0;
+                float flutter = 0.0;
+                if (flutterEnabled > 0.5)
+                {
+                    float detailScale = max(_WindScale, 0.001);
+                    float flutterNoise = SampleNoise01(
+                        fieldUV * detailScale * 2.6 + flow * (_FlutterSpeed * 0.9) + float2(0.27, 0.61));
+                    flutterNoise = flutterNoise * 2.0 - 1.0;
 
-                float flutterSine = sin(along * (detailScale * 1.6) - _Time.y * _FlutterSpeed + across * 0.08);
-                float flutter = (flutterNoise * 0.55 + flutterSine * 0.45) * _DetailStrength;
+                    float flutterSine = sin(along * (detailScale * 1.6) - _Time.y * _FlutterSpeed + across * 0.08);
+                    flutter = (flutterNoise * 0.55 + flutterSine * 0.45) * _DetailStrength;
+                }
 
                 // ------------------------------------------------------------
                 // 7) Body mask vs tip mask
@@ -496,7 +549,23 @@ Shader "Custom/Vit/GrassWind_URP"
                 // ------------------------------------------------------------
                 // 8) Final bend
                 // ------------------------------------------------------------
-                float backgroundBend = oceanMask * gustNoise * sideMask;
+                float backgroundBend = 0.0;
+                if (noiseEnabled > 0.5 || macroWaveEnabled > 0.5)
+                {
+                    float backgroundMask = sideMask;
+
+                    if (noiseEnabled > 0.5)
+                    {
+                        backgroundMask *= gustNoise;
+                    }
+
+                    if (macroWaveEnabled > 0.5)
+                    {
+                        backgroundMask *= oceanMask;
+                    }
+
+                    backgroundBend = backgroundMask;
+                }
                 float frontResponse = smoothstep(0.02, 0.88, saturate(gustFront * 0.9));
                 float impactBend = frontResponse * (0.45 + gustNoise * 0.65);
                 float waveRoll = gustWave * (0.16 + gustNoise * 0.10);
