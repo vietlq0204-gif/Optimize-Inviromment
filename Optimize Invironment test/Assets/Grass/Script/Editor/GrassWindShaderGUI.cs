@@ -15,6 +15,8 @@ public sealed class GrassWindShaderGUI : ShaderGUI
     private static bool s_ShowGustFront = true;
     private static bool s_ShowWindNoise = false;
     private static bool s_ShowBladeBend = false;
+    private static bool s_ShowInteraction = true;
+    private static bool s_ShowPersistentTrail = true;
     private static bool s_ShowColor = false;
     private static bool s_ShowTerrain = false;
 
@@ -67,6 +69,20 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         MaterialProperty detailStrength = Find("_DetailStrength", properties);
         MaterialProperty flutterSpeed = Find("_FlutterSpeed", properties);
 
+        MaterialProperty enableInteraction = Find("_EnableInteraction", properties);
+        MaterialProperty interactionStrength = Find("_InteractionStrength", properties);
+        MaterialProperty interactionRadiusMultiplier = Find("_InteractionRadiusMultiplier", properties);
+        MaterialProperty interactionFlatten = Find("_InteractionFlatten", properties);
+        MaterialProperty interactionPushAway = Find("_InteractionPushAway", properties);
+        MaterialProperty interactionTrail = Find("_InteractionTrail", properties);
+        MaterialProperty interactionVerticalRange = Find("_InteractionVerticalRange", properties);
+
+        MaterialProperty enableTrailMap = Find("_EnableTrailMap", properties);
+        MaterialProperty trailMapInfluence = Find("_TrailMapInfluence", properties);
+        MaterialProperty trailMapFlatten = Find("_TrailMapFlatten", properties);
+        MaterialProperty trailMapDarken = Find("_TrailMapDarken", properties);
+        MaterialProperty trailMapSharpness = Find("_TrailMapSharpness", properties);
+
         MaterialProperty nearColor = Find("_NearColor", properties);
         MaterialProperty farColor = Find("_FarColor", properties);
         MaterialProperty nearFarRange = Find("_NearFarRange", properties);
@@ -111,8 +127,27 @@ public sealed class GrassWindShaderGUI : ShaderGUI
             enableFlutter,
             detailStrength,
             flutterSpeed);
+        DrawInteraction(
+            materialEditor,
+            ref s_ShowInteraction,
+            enableInteraction,
+            interactionStrength,
+            interactionRadiusMultiplier,
+            interactionFlatten,
+            interactionPushAway,
+            interactionTrail,
+            interactionVerticalRange);
+        DrawPersistentTrail(
+            materialEditor,
+            ref s_ShowPersistentTrail,
+            enableTrailMap,
+            trailMapInfluence,
+            trailMapFlatten,
+            trailMapDarken,
+            trailMapSharpness);
         DrawColor(materialEditor, ref s_ShowColor, nearColor, farColor, nearFarRange, bottomColor, heightBlend);
         DrawTerrain(materialEditor, ref s_ShowTerrain, useTerrainColor, terrainColor);
+        DrawBakeTools(materialEditor);
     }
 
     /// <summary>
@@ -281,6 +316,67 @@ public sealed class GrassWindShaderGUI : ShaderGUI
     }
 
     /// <summary>
+    /// Draws object interaction controls.
+    /// </summary>
+    private static void DrawInteraction(
+        MaterialEditor materialEditor,
+        ref bool foldout,
+        MaterialProperty enableInteraction,
+        MaterialProperty interactionStrength,
+        MaterialProperty interactionRadiusMultiplier,
+        MaterialProperty interactionFlatten,
+        MaterialProperty interactionPushAway,
+        MaterialProperty interactionTrail,
+        MaterialProperty interactionVerticalRange)
+    {
+        foldout = EditorGUILayout.BeginFoldoutHeaderGroup(foldout, "Interaction");
+        if (foldout)
+        {
+            materialEditor.ShaderProperty(enableInteraction, "Enable Object Interaction");
+            EditorGUI.BeginDisabledGroup(enableInteraction.floatValue < 0.5f);
+            materialEditor.ShaderProperty(interactionStrength, "Bend Strength");
+            materialEditor.ShaderProperty(interactionRadiusMultiplier, "Radius Multiplier");
+            materialEditor.ShaderProperty(interactionFlatten, "Flatten");
+            materialEditor.ShaderProperty(interactionPushAway, "Push Away");
+            materialEditor.ShaderProperty(interactionTrail, "Trail");
+            materialEditor.ShaderProperty(interactionVerticalRange, "Vertical Range");
+            EditorGUI.EndDisabledGroup();
+            EditorGUILayout.Space(4);
+        }
+        EditorGUILayout.EndFoldoutHeaderGroup();
+    }
+
+    /// <summary>
+    /// Draws persistent trail controls.
+    /// </summary>
+    private static void DrawPersistentTrail(
+        MaterialEditor materialEditor,
+        ref bool foldout,
+        MaterialProperty enableTrailMap,
+        MaterialProperty trailMapInfluence,
+        MaterialProperty trailMapFlatten,
+        MaterialProperty trailMapDarken,
+        MaterialProperty trailMapSharpness)
+    {
+        foldout = EditorGUILayout.BeginFoldoutHeaderGroup(foldout, "Persistent Trail");
+        if (foldout)
+        {
+            materialEditor.ShaderProperty(enableTrailMap, "Enable Persistent Trail");
+            EditorGUI.BeginDisabledGroup(enableTrailMap.floatValue < 0.5f);
+            materialEditor.ShaderProperty(trailMapInfluence, "Trail Influence");
+            materialEditor.ShaderProperty(trailMapFlatten, "Trail Flatten");
+            materialEditor.ShaderProperty(trailMapDarken, "Trail Darken");
+            materialEditor.ShaderProperty(trailMapSharpness, "Trail Sharpness");
+            EditorGUI.EndDisabledGroup();
+            EditorGUILayout.HelpBox(
+                "The trail map is generated automatically from moving Grass Interaction Sources. Add Grass Trail Settings in the scene if you want to tune fade time or bounds.",
+                MessageType.None);
+            EditorGUILayout.Space(4);
+        }
+        EditorGUILayout.EndFoldoutHeaderGroup();
+    }
+
+    /// <summary>
     /// Draws color controls.
     /// </summary>
     private static void DrawColor(
@@ -326,6 +422,45 @@ public sealed class GrassWindShaderGUI : ShaderGUI
             EditorGUILayout.Space(4);
         }
         EditorGUILayout.EndFoldoutHeaderGroup();
+    }
+
+    /// <summary>
+    /// Draws one-click tools for syncing material values back into shader defaults.
+    /// </summary>
+    /// <param name="materialEditor">Active material editor.</param>
+    private static void DrawBakeTools(MaterialEditor materialEditor)
+    {
+        EditorGUILayout.Space(6);
+        EditorGUILayout.LabelField("Tools", EditorStyles.boldLabel);
+
+        bool singleMaterialSelected = materialEditor.targets.Length == 1;
+        Material material = materialEditor.target as Material;
+        string reason = string.Empty;
+        bool canBake = singleMaterialSelected && ShaderDefaultBakeUtility.CanBake(material, out reason);
+
+        using (new EditorGUI.DisabledScope(!canBake))
+        {
+            if (GUILayout.Button("Bake Material Values To Shader Defaults"))
+            {
+                ShaderDefaultBakeUtility.BakeMaterialWithDialogs(material);
+            }
+        }
+
+        if (!singleMaterialSelected)
+        {
+            EditorGUILayout.HelpBox("Select exactly one material to bake shader defaults.", MessageType.None);
+            return;
+        }
+
+        if (!canBake)
+        {
+            EditorGUILayout.HelpBox(reason, MessageType.Warning);
+            return;
+        }
+
+        EditorGUILayout.HelpBox(
+            "This writes float/color/vector defaults into the .shader file and syncs texture defaults through ShaderImporter. Texture scale/offset stays material-only.",
+            MessageType.None);
     }
 
     /// <summary>

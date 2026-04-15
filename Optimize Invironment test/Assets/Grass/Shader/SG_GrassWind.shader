@@ -7,22 +7,24 @@ Shader "Custom/Vit/GrassWind_URP"
         // ================================================================
         [MainTexture] _BaseMap ("Base Map", 2D) = "white" {}
         [MainColor] _BaseColor ("Base Color", Color) = (1,1,1,1)
-        _Cutoff ("Alpha Cutoff", Range(0,1)) = 0.3
+        _Cutoff ("Alpha Cutoff", Range(0,1)) = 0.328
 
         [NoScaleOffset] _WindTexture ("Wind Texture", 2D) = "gray" {}
-        _WindSpeed ("Wind Speed", Range(0,10)) = 0.72
+        _WindSpeed ("Wind Speed", Range(0,10)) = 4.67
         _WindStrength ("Wind Strength", Range(0,1)) = 0.22
-        _WindDirection ("Wind Direction XZ", Vector) = (0.92,0.30,0,0)
+        _WindDirection ("Wind Direction XZ", Vector) = (0.92,0.3,0,0)
         [Toggle] _EnableNoiseField ("Enable Noise Field", Float) = 1
         [Toggle] _EnableMacroWave ("Enable Macro Wave", Float) = 1
-        [Toggle] _EnableWave ("Enable Gust Front", Float) = 1
+        [Toggle] _EnableWave ("Enable Gust Front", Float) = 0
+        [Toggle] _EnableInteraction ("Enable Interaction", Float) = 1
+        [Toggle] _EnableTrailMap ("Enable Persistent Trail", Float) = 0
 
         // ================================================================
         // Wind Shape - Advanced
         // ================================================================
-        [HideInInspector] _WaveFrequency ("Wave Frequency", Range(0,10)) = 0.34
-        [HideInInspector] _WaveSharpness ("Wave Sharpness", Range(1,8)) = 2.2
-        [HideInInspector] _MacroWaveStrength ("Macro Wave Strength", Range(0,1)) = 0.68
+        [HideInInspector] _WaveFrequency ("Wave Frequency", Range(0,10)) = 7.82
+        [HideInInspector] _WaveSharpness ("Wave Sharpness", Range(1,8)) = 4.71
+        [HideInInspector] _MacroWaveStrength ("Macro Wave Strength", Range(0,1)) = 0.706
         [HideInInspector] _SideVariation ("Side Variation", Range(0,2)) = 0.22
 
         // ================================================================
@@ -30,9 +32,9 @@ Shader "Custom/Vit/GrassWind_URP"
         // ================================================================
         [HideInInspector] _GustFrontStrength ("Gust Front Strength", Range(0,2)) = 0.95
         [HideInInspector] _GustFrontSpeed ("Gust Front Speed", Range(0,25)) = 6.5
-        [HideInInspector] _GustFrontSpacing ("Gust Front Spacing", Range(1,40)) = 12.0
+        [HideInInspector] _GustFrontSpacing ("Gust Front Spacing", Range(1,40)) = 12
         [HideInInspector] _GustFrontWidth ("Gust Front Width", Range(0.1,8)) = 1.4
-        [HideInInspector] _GustFrontTrail ("Gust Front Trail", Range(0.1,14)) = 4.0
+        [HideInInspector] _GustFrontTrail ("Gust Front Trail", Range(0.1,14)) = 4
         [HideInInspector] _GustFrontCurvature ("Gust Front Curvature", Range(0,0.08)) = 0.014
         [HideInInspector] _GustFrontOverlap ("Gust Front Overlap", Range(0,1.5)) = 0.85
         [HideInInspector] _GustFrontBreakup ("Gust Front Breakup", Range(0,1)) = 0.55
@@ -42,10 +44,10 @@ Shader "Custom/Vit/GrassWind_URP"
         // ================================================================
         // Wind Noise - Advanced
         // ================================================================
-        [HideInInspector] _WindScale ("Wind Scale", Range(0,10)) = 1.15
+        [HideInInspector] _WindScale ("Wind Scale", Range(0,10)) = 9.03
         [HideInInspector] _WindNoiseScale ("Wind Noise Scale", Vector) = (34,52,0,0)
-        [HideInInspector] _WindNoiseSpeed ("Wind Noise Speed", Range(0,5)) = 0.22
-        [HideInInspector] _WindNoiseContrast ("Wind Noise Contrast", Vector) = (0.26,0.82,0,0)
+        [HideInInspector] _WindNoiseSpeed ("Wind Noise Speed", Range(0,5)) = 0.51
+        [HideInInspector] _WindNoiseContrast ("Wind Noise Contrast", Vector) = (0.26,0.8,0,0)
         [HideInInspector] _NoiseFieldInfluence ("Noise Field Influence", Range(0,1)) = 0.4
 
         // ================================================================
@@ -54,30 +56,48 @@ Shader "Custom/Vit/GrassWind_URP"
         [HideInInspector] _TopBend ("Top Bend", Range(0.1,5)) = 1.65
         [HideInInspector] _StemBend ("Stem Bend", Range(0,1)) = 0.45
         [HideInInspector] _WindHeight ("Wind Height", Range(0,1)) = 0.84
-        [HideInInspector] _DownBend ("Down Bend", Range(0,1)) = 0.14
+        [HideInInspector] _DownBend ("Down Bend", Range(0,1)) = 0
         [HideInInspector] _EnableFlutter ("Enable Flutter", Float) = 1
         [HideInInspector] _DetailStrength ("Detail Strength", Range(0,1)) = 0.06
         [HideInInspector] _FlutterSpeed ("Flutter Speed", Range(0,10)) = 1.65
 
         // ================================================================
+        // Interaction - Advanced
+        // ================================================================
+        [HideInInspector] _InteractionStrength ("Interaction Strength", Range(0,2)) = 0
+        [HideInInspector] _InteractionRadiusMultiplier ("Interaction Radius Multiplier", Range(0.25,2)) = 1.21
+        [HideInInspector] _InteractionFlatten ("Interaction Flatten", Range(0,1)) = 0.512
+        [HideInInspector] _InteractionPushAway ("Interaction Push Away", Range(0,1)) = 0.7
+        [HideInInspector] _InteractionTrail ("Interaction Trail", Range(0,3)) = 0.77
+        [HideInInspector] _InteractionVerticalRange ("Interaction Vertical Range", Range(0.05,2)) = 1.21
+
+        // ================================================================
+        // Persistent Trail - Advanced
+        // ================================================================
+        [HideInInspector] _TrailMapInfluence ("Trail Influence", Range(0,2)) = 0.3
+        [HideInInspector] _TrailMapFlatten ("Trail Flatten", Range(0,1)) = 0
+        [HideInInspector] _TrailMapDarken ("Trail Darken", Range(0,1)) = 0.28
+        [HideInInspector] _TrailMapSharpness ("Trail Sharpness", Range(0.5,4)) = 1.25
+
+        // ================================================================
         // Color - Advanced
         // ================================================================
-        [HideInInspector] _NearColor ("Near Color", Color) = (0.48,1.00,0.48,1)
-        [HideInInspector] _FarColor ("Far Color", Color) = (0.24,0.58,0.24,1)
+        [HideInInspector] _NearColor ("Near Color", Color) = (1,0.827451,0,1)
+        [HideInInspector] _FarColor ("Far Color", Color) = (1,1,1,1)
         [HideInInspector] _NearFarRange ("Near/Far Range", Vector) = (3,18,0,0)
-        [HideInInspector] _BottomColor ("Bottom Color", Color) = (0.18,0.42,0.16,1)
+        [HideInInspector] _BottomColor ("Bottom Color", Color) = (0.3660378,0.3244493,0,1)
         [HideInInspector] _HeightBlend ("Height Blend", Range(0,20)) = 4.5
 
         // ================================================================
         // Terrain - Advanced
         // ================================================================
         [HideInInspector] _UseTerrainColor ("Use Terrain Color", Float) = 0
-        [HideInInspector] _TerrainColor ("Terrain Color", Color) = (0.30,0.50,0.25,1)
+        [HideInInspector] _TerrainColor ("Terrain Color", Color) = (0.9887863,1,0,1)
 
         // ================================================================
         // Unused / Reserved
         // ================================================================
-        [HideInInspector] _ShadowColor ("Shadow Color", Color) = (0.30,0.22,0.10,1)
+        [HideInInspector] _ShadowColor ("Shadow Color", Color) = (0.3,0.2199999,0.09999994,1)
     }
 
     SubShader
@@ -128,6 +148,7 @@ Shader "Custom/Vit/GrassWind_URP"
                 float2 uv : TEXCOORD0;
                 float3 worldPos : TEXCOORD1;
                 float bladeMask : TEXCOORD2;
+                float trailMask : TEXCOORD3;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -135,6 +156,8 @@ Shader "Custom/Vit/GrassWind_URP"
             SAMPLER(sampler_BaseMap);
             TEXTURE2D(_WindTexture);
             SAMPLER(sampler_WindTexture);
+            TEXTURE2D(_GrassTrailMap);
+            SAMPLER(sampler_GrassTrailMap);
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _BaseMap_ST;
@@ -143,6 +166,8 @@ Shader "Custom/Vit/GrassWind_URP"
                 float _EnableWave;
                 float _EnableNoiseField;
                 float _EnableMacroWave;
+                float _EnableInteraction;
+                float _EnableTrailMap;
                 float _EnableFlutter;
                 float _WindStrength;
                 float _WindSpeed;
@@ -188,9 +213,26 @@ Shader "Custom/Vit/GrassWind_URP"
                 float _DownBend;
                 float _MacroWaveStrength;
                 float _FlutterSpeed;
-            
-            
+                float _InteractionStrength;
+                float _InteractionRadiusMultiplier;
+                float _InteractionFlatten;
+                float _InteractionPushAway;
+                float _InteractionTrail;
+                float _InteractionVerticalRange;
+                float _TrailMapInfluence;
+                float _TrailMapFlatten;
+                float _TrailMapDarken;
+                float _TrailMapSharpness;
+
+
             CBUFFER_END
+
+            #define GRASS_INTERACTOR_MAX 8
+
+            float4 _GrassInteractorData[GRASS_INTERACTOR_MAX];
+            float4 _GrassInteractorVelocity[GRASS_INTERACTOR_MAX];
+            int _GrassInteractorCount;
+            float4 _GrassTrailBounds;
 
             /// <summary>
             /// Calculates blade height mask in object space.
@@ -292,6 +334,135 @@ Shader "Custom/Vit/GrassWind_URP"
             float GetToggle01(float value)
             {
                 return step(0.5, value);
+            }
+
+            float3 SamplePersistentTrail(float3 worldPos)
+            {
+                float trailEnabled = GetToggle01(_EnableTrailMap);
+                if (trailEnabled < 0.5)
+                {
+                    return float3(0.0, 0.0, 0.0);
+                }
+
+                float2 boundsSize = max(_GrassTrailBounds.zw, float2(0.001, 0.001));
+                float2 uv = (worldPos.xz - _GrassTrailBounds.xy) / boundsSize;
+
+                if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0)
+                {
+                    return float3(0.0, 0.0, 0.0);
+                }
+
+                float4 trailSample = SAMPLE_TEXTURE2D_LOD(_GrassTrailMap, sampler_GrassTrailMap, uv, 0);
+                float trailMask = saturate(pow(trailSample.r, max(_TrailMapSharpness, 0.01)) * _TrailMapInfluence);
+                float2 trailDir = trailSample.gb * 2.0 - 1.0;
+
+                return float3(trailMask, trailDir.x, trailDir.y);
+            }
+
+            float3 ApplyPersistentTrail(float3 positionOS, float3 trailSample, float bladeMask, float rootLock, float stemProfile)
+            {
+                float trailMask = trailSample.x;
+                if (trailMask <= 0.0001)
+                {
+                    return positionOS;
+                }
+
+                float2 trailDir = trailSample.yz;
+                float trailDirLength = length(trailDir);
+                if (trailDirLength > 0.0001)
+                {
+                    trailDir /= trailDirLength;
+                }
+                else
+                {
+                    trailDir = normalize(_WindDirection.xy + float2(0.0001, 0.0001));
+                }
+
+                float trailProfile = rootLock * lerp(pow(bladeMask, 0.82), stemProfile, 0.58);
+                float layAmount = trailMask * _TrailMapInfluence * trailProfile;
+                float flatten = trailMask * _TrailMapFlatten * trailProfile;
+                float2 trailPerp = float2(-trailDir.y, trailDir.x);
+
+                float2 offsetXZ = trailDir * (layAmount * 0.24);
+                offsetXZ += trailPerp * (layAmount * 0.05);
+
+                return positionOS + float3(offsetXZ.x, -flatten, offsetXZ.y);
+            }
+
+            float3 ApplyInteraction(float3 positionOS, float3 worldPos, float bladeMask, float rootLock, float stemProfile)
+            {
+                float interactionEnabled = GetToggle01(_EnableInteraction);
+                if (interactionEnabled < 0.5 || _GrassInteractorCount <= 0)
+                {
+                    return positionOS;
+                }
+
+                float interactionMask = rootLock * lerp(pow(bladeMask, 0.92), stemProfile, 0.55);
+                float2 totalOffset = float2(0.0, 0.0);
+                float totalFlatten = 0.0;
+
+                [loop]
+                for (int i = 0; i < GRASS_INTERACTOR_MAX; i++)
+                {
+                    if (i >= _GrassInteractorCount)
+                    {
+                        break;
+                    }
+
+                    float3 interactorPos = _GrassInteractorData[i].xyz;
+                    float radius = max(_GrassInteractorData[i].w * _InteractionRadiusMultiplier, 0.001);
+                    float strength = max(_GrassInteractorVelocity[i].w, 0.0);
+
+                    float2 delta = worldPos.xz - interactorPos.xz;
+                    float dist = length(delta);
+
+                    float2 moveVec = _GrassInteractorVelocity[i].xz;
+                    float speed = length(moveVec);
+                    float2 moveDir = speed > 0.0001 ? moveVec / speed : float2(0.0, 0.0);
+
+                    float along = dot(delta, moveDir);
+                    float2 lateralVec = delta - moveDir * along;
+                    float lateral = length(lateralVec);
+
+                    float trailScale = 1.0;
+                    if (speed > 0.0001)
+                    {
+                        trailScale += _InteractionTrail * saturate(speed * 0.18) * step(along, 0.0);
+                    }
+
+                    float effectiveDistance = dist;
+                    if (speed > 0.0001)
+                    {
+                        float effectiveAlong = along / trailScale;
+                        effectiveDistance = length(float2(effectiveAlong, lateral));
+                    }
+
+                    float radialInfluence = 1.0 - smoothstep(radius * 0.18, radius, effectiveDistance);
+                    float verticalRange = max(_InteractionVerticalRange, 0.05);
+                    float verticalInfluence =
+                        1.0 - smoothstep(verticalRange, verticalRange + radius * 0.65, abs(worldPos.y - interactorPos.y));
+
+                    float influence = radialInfluence * verticalInfluence * strength;
+                    if (influence <= 0.0001)
+                    {
+                        continue;
+                    }
+
+                    float2 awayDir = dist > 0.0001 ? delta / dist : float2(0.0, 0.0);
+                    float2 bendDir = awayDir;
+                    float dragBlend = saturate(speed * 0.12);
+                    if (dragBlend > 0.0001)
+                    {
+                        float2 bendBase = awayDir * _InteractionPushAway + moveDir * dragBlend;
+                        float bendBaseLength = length(bendBase);
+                        bendDir = bendBaseLength > 0.0001 ? bendBase / bendBaseLength : moveDir;
+                    }
+
+                    totalOffset += bendDir * (influence * _InteractionStrength * interactionMask);
+                    totalFlatten += influence * _InteractionFlatten * interactionMask;
+                }
+
+                return positionOS + float3(totalOffset.x, -totalFlatten, totalOffset.y);
             }
 
             float2 SampleFrontSignal(float coord, float travel, float spacing, float width, float trail)
@@ -434,7 +605,7 @@ Shader "Custom/Vit/GrassWind_URP"
                 return lerp(_BottomColor.rgb, _BaseColor.rgb, bladeMask);
             }
 
-            float3 ApplyWind(float3 positionOS, float bladeMask)
+            float3 ApplyWind(float3 positionOS, float bladeMask, float3 trailSample)
             {
                 float3 worldPos = TransformObjectToWorld(positionOS);
 
@@ -592,7 +763,9 @@ Shader "Custom/Vit/GrassWind_URP"
                 float waveLift = rollAmount * 0.22;
                 float offsetY = -((bend * bend) + flatten * 0.42) * _DownBend + waveLift;
 
-                return positionOS + float3(offsetXZ.x, offsetY, offsetXZ.y);
+                float3 windPositionOS = positionOS + float3(offsetXZ.x, offsetY, offsetXZ.y);
+                float3 interactionPositionOS = ApplyInteraction(windPositionOS, worldPos, bladeMask, rootLock, stemProfile);
+                return ApplyPersistentTrail(interactionPositionOS, trailSample, bladeMask, rootLock, stemProfile);
             }
 
             /// <summary>
@@ -607,13 +780,16 @@ Shader "Custom/Vit/GrassWind_URP"
                 UNITY_TRANSFER_INSTANCE_ID(input, output);
 
                 float bladeMask = GetBladeMaskFromUV(input.uv.y);
-                float3 animatedPosOS = ApplyWind(input.positionOS.xyz, bladeMask);
+                float3 baseWorldPos = TransformObjectToWorld(input.positionOS.xyz);
+                float3 trailSample = SamplePersistentTrail(baseWorldPos);
+                float3 animatedPosOS = ApplyWind(input.positionOS.xyz, bladeMask, trailSample);
                 float3 worldPos = TransformObjectToWorld(animatedPosOS);
 
                 output.positionHCS = TransformWorldToHClip(worldPos);
                 output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
                 output.worldPos = worldPos;
                 output.bladeMask = bladeMask;
+                output.trailMask = trailSample.x;
 
                 return output;
             }
@@ -642,6 +818,8 @@ Shader "Custom/Vit/GrassWind_URP"
                 {
                     color.rgb = lerp(color.rgb, color.rgb * _TerrainColor.rgb, 0.35);
                 }
+
+                color.rgb *= lerp(1.0, 1.0 - _TrailMapDarken, input.trailMask);
 
                 return color;
             }
