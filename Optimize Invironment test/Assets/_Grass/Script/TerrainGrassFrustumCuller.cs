@@ -57,8 +57,8 @@ public sealed class TerrainGrassFrustumCuller : MonoBehaviour
 
     [Header("Runtime")]
     [SerializeField] private bool suppressBuiltInTerrainDetails = true;
-    [SerializeField] private bool castShadows;
-    [SerializeField] private bool receiveShadows;
+    [SerializeField] private bool castShadows = true;
+    [SerializeField] private bool receiveShadows = true;
     [SerializeField] private bool logBuildStats = true;
 
     private readonly List<GrassCell> cells = new();
