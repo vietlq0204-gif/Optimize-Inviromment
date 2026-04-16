@@ -1,4 +1,4 @@
-Shader "Custom/Vit/GrassWind_URP"
+Shader "Custom/Vit/PlantWind_URP"
 {
     Properties
     {

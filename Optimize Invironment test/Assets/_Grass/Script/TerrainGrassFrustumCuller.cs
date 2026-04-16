@@ -1,0 +1,539 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
+
+[DisallowMultipleComponent]
+public sealed class TerrainGrassFrustumCuller : MonoBehaviour
+{
+    [Serializable]
+    private sealed class CellBatch
+    {
+        public readonly List<Matrix4x4> Matrices = new();
+    }
+
+    private sealed class GrassCell
+    {
+        public Bounds Bounds;
+        public CellBatch[] Batches = Array.Empty<CellBatch>();
+        public bool IsVisible;
+    }
+
+    private readonly struct RenderPass
+    {
+        public RenderPass(Mesh mesh, int subMeshIndex, Material material)
+        {
+            Mesh = mesh;
+            SubMeshIndex = subMeshIndex;
+            Material = material;
+        }
+
+        public Mesh Mesh { get; }
+        public int SubMeshIndex { get; }
+        public Material Material { get; }
+    }
+
+    private sealed class PrototypeInfo
+    {
+        public int DetailLayerIndex;
+        public string Name = string.Empty;
+        public Matrix4x4 PrototypeLocalMatrix = Matrix4x4.identity;
+        public RenderPass[] Passes = Array.Empty<RenderPass>();
+    }
+
+    [Header("References")]
+    [SerializeField] private Terrain terrain;
+    [SerializeField] private Camera targetCamera;
+
+    [Header("Culling")]
+    [SerializeField] private float cellSize = 16f;
+    [SerializeField] private float maxRenderDistance = 60f;
+    [SerializeField] private int visibilityRefreshInterval = 3;
+
+    [Header("Build")]
+    [SerializeField] private bool buildAsynchronously = true;
+    [SerializeField] private int buildPatchesPerFrame = 8;
+    [SerializeField] private int maxTotalInstances = 200000;
+
+    [Header("Runtime")]
+    [SerializeField] private bool suppressBuiltInTerrainDetails = true;
+    [SerializeField] private bool castShadows;
+    [SerializeField] private bool receiveShadows;
+    [SerializeField] private bool logBuildStats = true;
+
+    private readonly List<GrassCell> cells = new();
+    private readonly List<PrototypeInfo> prototypes = new();
+    private readonly Matrix4x4[] drawBuffer = new Matrix4x4[511];
+
+    private bool isBuilt;
+    private bool isBuilding;
+    private bool builtFromTerrainDetailData;
+    private float originalDetailObjectDistance = -1f;
+    private Coroutine buildRoutine;
+
+    private void Reset()
+    {
+        terrain = GetComponent<Terrain>();
+        targetCamera = Camera.main;
+    }
+
+    private void Awake()
+    {
+        if (terrain == null)
+        {
+            terrain = GetComponent<Terrain>();
+        }
+
+        if (targetCamera == null)
+        {
+            targetCamera = Camera.main;
+        }
+    }
+
+    private void OnEnable()
+    {
+        if (!Application.isPlaying)
+        {
+            return;
+        }
+
+        StartBuild();
+    }
+
+    private void OnDisable()
+    {
+        if (!Application.isPlaying)
+        {
+            return;
+        }
+
+        if (buildRoutine != null)
+        {
+            StopCoroutine(buildRoutine);
+            buildRoutine = null;
+        }
+
+        isBuilding = false;
+        ApplyBuiltInTerrainDetailSuppression(false);
+    }
+
+    private void LateUpdate()
+    {
+        if (!isBuilt && !isBuilding)
+        {
+            StartBuild();
+        }
+
+        if (!isBuilt || isBuilding || targetCamera == null)
+        {
+            return;
+        }
+
+        if (visibilityRefreshInterval <= 1 || Time.frameCount % visibilityRefreshInterval == 0)
+        {
+            UpdateVisibility();
+        }
+
+        RenderVisibleCells();
+    }
+
+    [ContextMenu("Rebuild Grass Data")]
+    public void Build()
+    {
+        if (!Application.isPlaying)
+        {
+            Debug.LogWarning("Rebuild Grass Data only runs in Play Mode.", this);
+            return;
+        }
+
+        StartBuild();
+    }
+
+    private void StartBuild()
+    {
+        if (!Application.isPlaying)
+        {
+            return;
+        }
+
+        if (buildRoutine != null)
+        {
+            StopCoroutine(buildRoutine);
+            buildRoutine = null;
+        }
+
+        buildRoutine = StartCoroutine(BuildRoutine());
+    }
+
+    private System.Collections.IEnumerator BuildRoutine()
+    {
+        isBuilt = false;
+        isBuilding = true;
+
+        if (buildAsynchronously)
+        {
+            yield return null;
+        }
+
+        yield return BuildInternalAsync();
+
+        buildRoutine = null;
+        isBuilding = false;
+    }
+
+    private System.Collections.IEnumerator BuildInternalAsync()
+    {
+        isBuilt = false;
+        builtFromTerrainDetailData = false;
+        cells.Clear();
+        prototypes.Clear();
+
+        if (terrain == null)
+        {
+            terrain = GetComponent<Terrain>();
+        }
+
+        if (terrain == null)
+        {
+            Debug.LogWarning("TerrainGrassFrustumCuller requires a Terrain reference.", this);
+            yield break;
+        }
+
+        if (targetCamera == null)
+        {
+            targetCamera = Camera.main;
+        }
+
+        TerrainData terrainData = terrain.terrainData;
+        if (terrainData == null)
+        {
+            Debug.LogWarning("TerrainGrassFrustumCuller could not find TerrainData.", this);
+            yield break;
+        }
+
+        CollectSupportedPrototypes(terrainData);
+        if (prototypes.Count == 0)
+        {
+            Debug.LogWarning("TerrainGrassFrustumCuller found no mesh-based terrain detail prototypes to render.", this);
+            yield break;
+        }
+
+        CreateCells(terrainData);
+        yield return PopulateCellsFromTerrainDetailsAsync(terrainData);
+        UpdateVisibility();
+
+        isBuilt = true;
+        ApplyBuiltInTerrainDetailSuppression(true);
+
+        if (logBuildStats)
+        {
+            int instanceCount = 0;
+            foreach (GrassCell cell in cells)
+            {
+                for (int i = 0; i < cell.Batches.Length; i++)
+                {
+                    instanceCount += cell.Batches[i].Matrices.Count;
+                }
+            }
+
+            Debug.Log(
+                $"TerrainGrassFrustumCuller built {instanceCount} grass instances into {cells.Count} cells using {prototypes.Count} terrain detail prototypes.",
+                this);
+        }
+
+        yield break;
+    }
+
+    private void CollectSupportedPrototypes(TerrainData terrainData)
+    {
+        DetailPrototype[] detailPrototypes = terrainData.detailPrototypes;
+        for (int layerIndex = 0; layerIndex < detailPrototypes.Length; layerIndex++)
+        {
+            DetailPrototype detailPrototype = detailPrototypes[layerIndex];
+            GameObject prototypeObject = detailPrototype.prototype;
+            if (prototypeObject == null)
+            {
+                continue;
+            }
+
+            MeshFilter meshFilter = prototypeObject.GetComponent<MeshFilter>();
+            MeshRenderer meshRenderer = prototypeObject.GetComponent<MeshRenderer>();
+            if (meshFilter == null || meshRenderer == null || meshFilter.sharedMesh == null)
+            {
+                continue;
+            }
+
+            Material[] sharedMaterials = meshRenderer.sharedMaterials;
+            if (sharedMaterials == null || sharedMaterials.Length == 0)
+            {
+                continue;
+            }
+
+            List<RenderPass> passes = new();
+            int subMeshCount = Mathf.Min(meshFilter.sharedMesh.subMeshCount, sharedMaterials.Length);
+            for (int subMeshIndex = 0; subMeshIndex < subMeshCount; subMeshIndex++)
+            {
+                Material material = sharedMaterials[subMeshIndex];
+                if (material == null)
+                {
+                    continue;
+                }
+
+                material.enableInstancing = true;
+                passes.Add(new RenderPass(meshFilter.sharedMesh, subMeshIndex, material));
+            }
+
+            if (passes.Count == 0)
+            {
+                continue;
+            }
+
+            prototypes.Add(new PrototypeInfo
+            {
+                DetailLayerIndex = layerIndex,
+                Name = prototypeObject.name,
+                PrototypeLocalMatrix = Matrix4x4.TRS(
+                    prototypeObject.transform.localPosition,
+                    prototypeObject.transform.localRotation,
+                    prototypeObject.transform.localScale),
+                Passes = passes.ToArray(),
+            });
+        }
+    }
+
+    private void CreateCells(TerrainData terrainData)
+    {
+        Vector3 terrainPosition = terrain.transform.position;
+        Vector3 terrainSize = terrainData.size;
+        float clampedCellSize = Mathf.Max(1f, cellSize);
+
+        int cellCountX = Mathf.CeilToInt(terrainSize.x / clampedCellSize);
+        int cellCountZ = Mathf.CeilToInt(terrainSize.z / clampedCellSize);
+        float boundsHeight = Mathf.Max(terrainSize.y + 10f, 20f);
+
+        cells.Capacity = cellCountX * cellCountZ;
+
+        for (int z = 0; z < cellCountZ; z++)
+        {
+            for (int x = 0; x < cellCountX; x++)
+            {
+                float minX = terrainPosition.x + x * clampedCellSize;
+                float minZ = terrainPosition.z + z * clampedCellSize;
+                float sizeX = Mathf.Min(clampedCellSize, terrainSize.x - x * clampedCellSize);
+                float sizeZ = Mathf.Min(clampedCellSize, terrainSize.z - z * clampedCellSize);
+
+                CellBatch[] batches = new CellBatch[prototypes.Count];
+                for (int prototypeIndex = 0; prototypeIndex < prototypes.Count; prototypeIndex++)
+                {
+                    batches[prototypeIndex] = new CellBatch();
+                }
+
+                cells.Add(new GrassCell
+                {
+                    Bounds = new Bounds(
+                        new Vector3(minX + sizeX * 0.5f, terrainPosition.y + boundsHeight * 0.5f, minZ + sizeZ * 0.5f),
+                        new Vector3(sizeX, boundsHeight, sizeZ)),
+                    Batches = batches,
+                });
+            }
+        }
+    }
+
+    private System.Collections.IEnumerator PopulateCellsFromTerrainDetailsAsync(TerrainData terrainData)
+    {
+        int patchCount = terrainData.detailPatchCount;
+        if (patchCount <= 0)
+        {
+            yield break;
+        }
+
+        Vector3 terrainPosition = terrain.transform.position;
+        Vector3 terrainSize = terrainData.size;
+        float clampedCellSize = Mathf.Max(1f, cellSize);
+        int clampedBuildPatchesPerFrame = buildAsynchronously ? Mathf.Max(1, buildPatchesPerFrame) : int.MaxValue;
+        int clampedMaxTotalInstances = Mathf.Max(1000, maxTotalInstances);
+        int cellCountX = Mathf.CeilToInt(terrainSize.x / clampedCellSize);
+        int cellCountZ = Mathf.CeilToInt(terrainSize.z / clampedCellSize);
+        int processedPatches = 0;
+        int totalInstances = 0;
+        bool reachedInstanceCap = false;
+        float detailDensity = terrain.detailObjectDensity;
+
+        for (int patchZ = 0; patchZ < patchCount; patchZ++)
+        {
+            for (int patchX = 0; patchX < patchCount; patchX++)
+            {
+                for (int prototypeIndex = 0; prototypeIndex < prototypes.Count; prototypeIndex++)
+                {
+                    PrototypeInfo prototype = prototypes[prototypeIndex];
+                    DetailInstanceTransform[] detailTransforms = terrainData.ComputeDetailInstanceTransforms(
+                        patchX,
+                        patchZ,
+                        prototype.DetailLayerIndex,
+                        detailDensity,
+                        out Bounds localPatchBounds);
+
+                    if (detailTransforms == null || detailTransforms.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    Bounds worldPatchBounds = new Bounds(localPatchBounds.center + terrainPosition, localPatchBounds.size);
+
+                    for (int transformIndex = 0; transformIndex < detailTransforms.Length; transformIndex++)
+                    {
+                        if (totalInstances >= clampedMaxTotalInstances)
+                        {
+                            reachedInstanceCap = true;
+                            break;
+                        }
+
+                        Matrix4x4 matrix = CreateInstanceMatrix(prototype, terrainPosition, detailTransforms[transformIndex]);
+
+                        Vector3 position = new Vector3(matrix.m03, matrix.m13, matrix.m23);
+                        int cellX = Mathf.Clamp((int)((position.x - terrainPosition.x) / clampedCellSize), 0, Mathf.Max(0, cellCountX - 1));
+                        int cellZ = Mathf.Clamp((int)((position.z - terrainPosition.z) / clampedCellSize), 0, Mathf.Max(0, cellCountZ - 1));
+                        int cellIndex = cellZ * cellCountX + cellX;
+
+                        cells[cellIndex].Bounds.Encapsulate(worldPatchBounds);
+                        cells[cellIndex].Batches[prototypeIndex].Matrices.Add(matrix);
+                        totalInstances++;
+                    }
+
+                    if (reachedInstanceCap)
+                    {
+                        break;
+                    }
+                }
+
+                if (reachedInstanceCap)
+                {
+                    break;
+                }
+
+                processedPatches++;
+                if (processedPatches >= clampedBuildPatchesPerFrame)
+                {
+                    processedPatches = 0;
+                    yield return null;
+                }
+            }
+
+            if (reachedInstanceCap)
+            {
+                break;
+            }
+        }
+
+        if (reachedInstanceCap)
+        {
+            Debug.LogWarning(
+                $"TerrainGrassFrustumCuller stopped building at {totalInstances} instances to keep Play Mode responsive. Increase Max Total Instances if you need a full terrain match.",
+                this);
+        }
+
+        builtFromTerrainDetailData = totalInstances > 0;
+        yield break;
+    }
+
+    private Matrix4x4 CreateInstanceMatrix(
+        PrototypeInfo prototype,
+        Vector3 terrainPosition,
+        DetailInstanceTransform detailTransform)
+    {
+        Matrix4x4 terrainInstanceMatrix = Matrix4x4.TRS(
+            terrainPosition + new Vector3(detailTransform.posX, detailTransform.posY, detailTransform.posZ),
+            Quaternion.Euler(0f, detailTransform.rotationY * Mathf.Rad2Deg, 0f),
+            new Vector3(detailTransform.scaleXZ, detailTransform.scaleY, detailTransform.scaleXZ));
+
+        return terrainInstanceMatrix * prototype.PrototypeLocalMatrix;
+    }
+
+    private void UpdateVisibility()
+    {
+        if (targetCamera == null)
+        {
+            return;
+        }
+
+        Plane[] frustumPlanes = GeometryUtility.CalculateFrustumPlanes(targetCamera);
+        Vector3 cameraPosition = targetCamera.transform.position;
+        float maxDistanceSqr = maxRenderDistance * maxRenderDistance;
+
+        foreach (GrassCell cell in cells)
+        {
+            Vector3 offset = cell.Bounds.center - cameraPosition;
+            bool withinDistance = offset.sqrMagnitude <= maxDistanceSqr;
+            cell.IsVisible = withinDistance && GeometryUtility.TestPlanesAABB(frustumPlanes, cell.Bounds);
+        }
+    }
+
+    private void RenderVisibleCells()
+    {
+        if (!builtFromTerrainDetailData)
+        {
+            return;
+        }
+
+        for (int cellIndex = 0; cellIndex < cells.Count; cellIndex++)
+        {
+            GrassCell cell = cells[cellIndex];
+            if (!cell.IsVisible)
+            {
+                continue;
+            }
+
+            for (int prototypeIndex = 0; prototypeIndex < prototypes.Count; prototypeIndex++)
+            {
+                List<Matrix4x4> matrices = cell.Batches[prototypeIndex].Matrices;
+                if (matrices.Count == 0)
+                {
+                    continue;
+                }
+
+                RenderPass[] passes = prototypes[prototypeIndex].Passes;
+                for (int passIndex = 0; passIndex < passes.Length; passIndex++)
+                {
+                    RenderPass renderPass = passes[passIndex];
+                    RenderParams renderParams = new RenderParams(renderPass.Material)
+                    {
+                        worldBounds = cell.Bounds,
+                        shadowCastingMode = castShadows ? ShadowCastingMode.On : ShadowCastingMode.Off,
+                        receiveShadows = receiveShadows,
+                    };
+
+                    for (int startIndex = 0; startIndex < matrices.Count; startIndex += drawBuffer.Length)
+                    {
+                        int count = Mathf.Min(drawBuffer.Length, matrices.Count - startIndex);
+                        matrices.CopyTo(startIndex, drawBuffer, 0, count);
+                        Graphics.RenderMeshInstanced(renderParams, renderPass.Mesh, renderPass.SubMeshIndex, drawBuffer, count);
+                    }
+                }
+            }
+        }
+    }
+
+    private void ApplyBuiltInTerrainDetailSuppression(bool suppress)
+    {
+        if (!Application.isPlaying || !suppressBuiltInTerrainDetails || terrain == null)
+        {
+            return;
+        }
+
+        if (suppress)
+        {
+            if (originalDetailObjectDistance < 0f)
+            {
+                originalDetailObjectDistance = terrain.detailObjectDistance;
+            }
+
+            terrain.detailObjectDistance = 0f;
+            return;
+        }
+
+        if (originalDetailObjectDistance >= 0f)
+        {
+            terrain.detailObjectDistance = originalDetailObjectDistance;
+        }
+    }
+}
