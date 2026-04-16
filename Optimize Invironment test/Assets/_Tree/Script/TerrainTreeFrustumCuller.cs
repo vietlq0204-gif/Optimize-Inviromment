@@ -45,7 +45,7 @@ public sealed class TerrainTreeFrustumCuller : MonoBehaviour
     [SerializeField] private Camera targetCamera;
 
     [Header("Culling")]
-    [SerializeField] private float cellSize = 32f;
+    [SerializeField] private float cellSize = 16f;
     [SerializeField] private float activationDistance = 80f;
     [SerializeField] private float unloadDistance = 100f;
     [SerializeField] private int refreshInterval = 5;

@@ -475,6 +475,27 @@ public sealed class TerrainGrassFrustumCuller : MonoBehaviour
             return;
         }
 
+        for (int prototypeIndex = 0; prototypeIndex < prototypes.Count; prototypeIndex++)
+        {
+            RenderPass[] passes = prototypes[prototypeIndex].Passes;
+            if (passes.Length == 0)
+            {
+                continue;
+            }
+
+            for (int passIndex = 0; passIndex < passes.Length; passIndex++)
+            {
+                RenderVisiblePrototypePass(prototypeIndex, passes[passIndex]);
+            }
+        }
+    }
+
+    private void RenderVisiblePrototypePass(int prototypeIndex, RenderPass renderPass)
+    {
+        int bufferedCount = 0;
+        bool hasBufferedBounds = false;
+        Bounds bufferedBounds = default;
+
         for (int cellIndex = 0; cellIndex < cells.Count; cellIndex++)
         {
             GrassCell cell = cells[cellIndex];
@@ -483,34 +504,55 @@ public sealed class TerrainGrassFrustumCuller : MonoBehaviour
                 continue;
             }
 
-            for (int prototypeIndex = 0; prototypeIndex < prototypes.Count; prototypeIndex++)
+            List<Matrix4x4> matrices = cell.Batches[prototypeIndex].Matrices;
+            if (matrices.Count == 0)
             {
-                List<Matrix4x4> matrices = cell.Batches[prototypeIndex].Matrices;
-                if (matrices.Count == 0)
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                RenderPass[] passes = prototypes[prototypeIndex].Passes;
-                for (int passIndex = 0; passIndex < passes.Length; passIndex++)
-                {
-                    RenderPass renderPass = passes[passIndex];
-                    RenderParams renderParams = new RenderParams(renderPass.Material)
-                    {
-                        worldBounds = cell.Bounds,
-                        shadowCastingMode = castShadows ? ShadowCastingMode.On : ShadowCastingMode.Off,
-                        receiveShadows = receiveShadows,
-                    };
+            if (hasBufferedBounds)
+            {
+                bufferedBounds.Encapsulate(cell.Bounds);
+            }
+            else
+            {
+                bufferedBounds = cell.Bounds;
+                hasBufferedBounds = true;
+            }
 
-                    for (int startIndex = 0; startIndex < matrices.Count; startIndex += drawBuffer.Length)
-                    {
-                        int count = Mathf.Min(drawBuffer.Length, matrices.Count - startIndex);
-                        matrices.CopyTo(startIndex, drawBuffer, 0, count);
-                        Graphics.RenderMeshInstanced(renderParams, renderPass.Mesh, renderPass.SubMeshIndex, drawBuffer, count);
-                    }
+            int sourceIndex = 0;
+            while (sourceIndex < matrices.Count)
+            {
+                int copyCount = Mathf.Min(drawBuffer.Length - bufferedCount, matrices.Count - sourceIndex);
+                matrices.CopyTo(sourceIndex, drawBuffer, bufferedCount, copyCount);
+                bufferedCount += copyCount;
+                sourceIndex += copyCount;
+
+                if (bufferedCount == drawBuffer.Length)
+                {
+                    DrawBufferedInstances(renderPass, bufferedBounds, bufferedCount);
+                    bufferedCount = 0;
+                    hasBufferedBounds = false;
                 }
             }
         }
+
+        if (bufferedCount > 0 && hasBufferedBounds)
+        {
+            DrawBufferedInstances(renderPass, bufferedBounds, bufferedCount);
+        }
+    }
+
+    private void DrawBufferedInstances(RenderPass renderPass, Bounds worldBounds, int count)
+    {
+        RenderParams renderParams = new RenderParams(renderPass.Material)
+        {
+            worldBounds = worldBounds,
+            shadowCastingMode = castShadows ? ShadowCastingMode.On : ShadowCastingMode.Off,
+            receiveShadows = receiveShadows,
+        };
+
+        Graphics.RenderMeshInstanced(renderParams, renderPass.Mesh, renderPass.SubMeshIndex, drawBuffer, count);
     }
 
     private void ApplyBuiltInTerrainDetailSuppression(bool suppress)
