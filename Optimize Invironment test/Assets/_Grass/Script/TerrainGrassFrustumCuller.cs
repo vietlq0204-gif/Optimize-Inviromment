@@ -48,6 +48,11 @@ public sealed class TerrainGrassFrustumCuller : MonoBehaviour
     [SerializeField] private Camera targetCamera;
 
     [Header("Culling")]
+    [SerializeField] private bool enableDistanceCulling = true;
+    [SerializeField] private bool enableFrustumCulling = true;
+    [SerializeField] private bool keepShadowsWhenFrustumCulled;
+    [SerializeField] private bool keepShadowsWhenDistanceCulled;
+    [SerializeField] private float shadowOnlyDistance;
     [SerializeField] private float cellSize = 16f;
     [SerializeField] private float maxRenderDistance = 60f;
     [SerializeField] private int visibilityRefreshInterval = 3;
@@ -470,18 +475,29 @@ public sealed class TerrainGrassFrustumCuller : MonoBehaviour
     {
         if (targetCamera == null)
         {
+            targetCamera = Camera.main;
+        }
+
+        if (targetCamera == null)
+        {
+            foreach (GrassCell cell in cells)
+            {
+                cell.IsVisible = true;
+            }
+
             return;
         }
 
-        Plane[] frustumPlanes = GeometryUtility.CalculateFrustumPlanes(targetCamera);
+        Plane[] frustumPlanes = enableFrustumCulling ? GeometryUtility.CalculateFrustumPlanes(targetCamera) : null;
         Vector3 cameraPosition = targetCamera.transform.position;
         float maxDistanceSqr = maxRenderDistance * maxRenderDistance;
 
         foreach (GrassCell cell in cells)
         {
             Vector3 offset = cell.Bounds.center - cameraPosition;
-            bool withinDistance = offset.sqrMagnitude <= maxDistanceSqr;
-            cell.IsVisible = withinDistance && GeometryUtility.TestPlanesAABB(frustumPlanes, cell.Bounds);
+            bool withinDistance = !enableDistanceCulling || offset.sqrMagnitude <= maxDistanceSqr;
+            bool isInsideFrustum = !enableFrustumCulling || GeometryUtility.TestPlanesAABB(frustumPlanes, cell.Bounds);
+            cell.IsVisible = withinDistance && isInsideFrustum;
         }
     }
 

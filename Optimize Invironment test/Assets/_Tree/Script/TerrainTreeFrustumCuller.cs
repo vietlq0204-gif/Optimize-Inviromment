@@ -2,10 +2,18 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 [DisallowMultipleComponent]
 public sealed class TerrainTreeFrustumCuller : MonoBehaviour
 {
+    private enum TreeCellRenderMode
+    {
+        Hidden,
+        Visible,
+        ShadowOnly,
+    }
+
     [Serializable]
     private struct TreeRecord
     {
@@ -27,6 +35,23 @@ public sealed class TerrainTreeFrustumCuller : MonoBehaviour
     {
         public int PrototypeIndex;
         public GameObject GameObject;
+        public CachedRendererState[] Renderers = Array.Empty<CachedRendererState>();
+    }
+
+    private readonly struct CachedRendererState
+    {
+        public CachedRendererState(Renderer renderer)
+        {
+            Renderer = renderer;
+            ShadowCastingMode = renderer != null ? renderer.shadowCastingMode : ShadowCastingMode.On;
+            WasEnabled = renderer != null && renderer.enabled;
+            WasForceRenderingOff = renderer != null && renderer.forceRenderingOff;
+        }
+
+        public Renderer Renderer { get; }
+        public ShadowCastingMode ShadowCastingMode { get; }
+        public bool WasEnabled { get; }
+        public bool WasForceRenderingOff { get; }
     }
 
     private sealed class TreeCell
@@ -36,6 +61,7 @@ public sealed class TerrainTreeFrustumCuller : MonoBehaviour
         public readonly List<LoadedTreeInstance> LoadedInstances = new();
         public GameObject Root;
         public bool IsLoaded;
+        public TreeCellRenderMode RenderMode = TreeCellRenderMode.Hidden;
     }
 
     [Header("References")]
@@ -45,6 +71,11 @@ public sealed class TerrainTreeFrustumCuller : MonoBehaviour
     [SerializeField] private Camera targetCamera;
 
     [Header("Culling")]
+    [SerializeField] private bool enableDistanceCulling = true;
+    [SerializeField] private bool enableFrustumCulling = true;
+    [SerializeField] private bool keepShadowsWhenFrustumCulled;
+    [SerializeField] private bool keepShadowsWhenDistanceCulled;
+    [SerializeField] private float shadowOnlyDistance = 80f;
     [SerializeField] private float cellSize = 16f;
     [SerializeField] private float activationDistance = 80f;
     [SerializeField] private float unloadDistance = 100f;
@@ -312,30 +343,126 @@ public sealed class TerrainTreeFrustumCuller : MonoBehaviour
 
     private void RefreshLoadedCells()
     {
+        if (targetCamera == null)
+        {
+            targetCamera = Camera.main;
+        }
+
         Vector3 anchorPosition = GetAnchorPosition();
+        Vector3 cameraPosition = targetCamera != null ? targetCamera.transform.position : anchorPosition;
         float activationDistanceSqr = activationDistance * activationDistance;
-        float unloadDistanceSqr = Mathf.Max(unloadDistance, activationDistance + 5f) * Mathf.Max(unloadDistance, activationDistance + 5f);
+        float effectiveUnloadDistance = Mathf.Max(unloadDistance, activationDistance + 5f);
+        float unloadDistanceSqr = effectiveUnloadDistance * effectiveUnloadDistance;
+        float effectiveShadowOnlyDistance = GetEffectiveShadowOnlyDistance();
+        float shadowOnlyDistanceSqr = effectiveShadowOnlyDistance * effectiveShadowOnlyDistance;
+        Plane[] frustumPlanes = enableFrustumCulling && targetCamera != null
+            ? GeometryUtility.CalculateFrustumPlanes(targetCamera)
+            : null;
         int remainingLoads = Mathf.Max(1, maxCellLoadsPerRefresh);
 
         for (int i = 0; i < cells.Count; i++)
         {
             TreeCell cell = cells[i];
             float sqrDistance = cell.Bounds.SqrDistance(anchorPosition);
+            float cameraDistanceSqr = cell.Bounds.SqrDistance(cameraPosition);
+            bool isWithinActivationDistance = !enableDistanceCulling || sqrDistance <= activationDistanceSqr;
+            bool isInsideFrustum = !enableFrustumCulling ||
+                frustumPlanes == null ||
+                GeometryUtility.TestPlanesAABB(frustumPlanes, cell.Bounds);
+            bool shouldKeepShadowOnly = enableFrustumCulling &&
+                !isInsideFrustum &&
+                keepShadowsWhenFrustumCulled &&
+                effectiveShadowOnlyDistance > 0f &&
+                cameraDistanceSqr <= shadowOnlyDistanceSqr;
+            TreeCellRenderMode desiredRenderMode = isInsideFrustum
+                ? TreeCellRenderMode.Visible
+                : shouldKeepShadowOnly ? TreeCellRenderMode.ShadowOnly : TreeCellRenderMode.Hidden;
 
             if (!cell.IsLoaded)
             {
-                if (sqrDistance <= activationDistanceSqr && remainingLoads > 0)
+                if (isWithinActivationDistance && desiredRenderMode != TreeCellRenderMode.Hidden && remainingLoads > 0)
                 {
                     LoadCell(cell);
+                    SetCellRenderMode(cell, desiredRenderMode);
                     remainingLoads--;
                 }
 
                 continue;
             }
 
-            if (sqrDistance > unloadDistanceSqr)
+            if (enableDistanceCulling && sqrDistance > unloadDistanceSqr)
             {
                 UnloadCell(cell);
+                continue;
+            }
+
+            SetCellRenderMode(cell, desiredRenderMode);
+        }
+    }
+
+    private float GetEffectiveShadowOnlyDistance()
+    {
+        if (shadowOnlyDistance <= 0f)
+        {
+            return 0f;
+        }
+
+        float qualityShadowDistance = QualitySettings.shadowDistance;
+        if (qualityShadowDistance <= 0f)
+        {
+            return 0f;
+        }
+
+        return Mathf.Min(shadowOnlyDistance, qualityShadowDistance);
+    }
+
+    private void SetCellRenderMode(TreeCell cell, TreeCellRenderMode renderMode)
+    {
+        if (!cell.IsLoaded || cell.Root == null || cell.RenderMode == renderMode)
+        {
+            return;
+        }
+
+        bool shouldKeepRootActive = renderMode != TreeCellRenderMode.Hidden;
+        if (cell.Root.activeSelf != shouldKeepRootActive)
+        {
+            cell.Root.SetActive(shouldKeepRootActive);
+        }
+
+        if (renderMode == TreeCellRenderMode.Visible || renderMode == TreeCellRenderMode.ShadowOnly)
+        {
+            ApplyCellRenderMode(cell, renderMode);
+        }
+
+        cell.RenderMode = renderMode;
+    }
+
+    private void ApplyCellRenderMode(TreeCell cell, TreeCellRenderMode renderMode)
+    {
+        for (int i = 0; i < cell.LoadedInstances.Count; i++)
+        {
+            ApplyLoadedInstanceRenderMode(cell.LoadedInstances[i], renderMode);
+        }
+    }
+
+    private static void ApplyLoadedInstanceRenderMode(LoadedTreeInstance loadedInstance, TreeCellRenderMode renderMode)
+    {
+        for (int i = 0; i < loadedInstance.Renderers.Length; i++)
+        {
+            CachedRendererState cachedRenderer = loadedInstance.Renderers[i];
+            Renderer renderer = cachedRenderer.Renderer;
+            if (renderer == null)
+            {
+                continue;
+            }
+
+            renderer.enabled = cachedRenderer.WasEnabled;
+            renderer.forceRenderingOff = cachedRenderer.WasForceRenderingOff;
+            renderer.shadowCastingMode = cachedRenderer.ShadowCastingMode;
+
+            if (renderMode == TreeCellRenderMode.ShadowOnly && cachedRenderer.WasEnabled && !cachedRenderer.WasForceRenderingOff)
+            {
+                renderer.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
             }
         }
     }
@@ -365,14 +492,11 @@ public sealed class TerrainTreeFrustumCuller : MonoBehaviour
             instanceTransform.localScale = tree.Scale;
             instance.SetActive(true);
 
-            cell.LoadedInstances.Add(new LoadedTreeInstance
-            {
-                PrototypeIndex = tree.PrototypeIndex,
-                GameObject = instance,
-            });
+            cell.LoadedInstances.Add(CreateLoadedTreeInstance(tree.PrototypeIndex, instance));
         }
 
         cell.IsLoaded = true;
+        cell.RenderMode = TreeCellRenderMode.Visible;
     }
 
     private void UnloadCell(TreeCell cell)
@@ -390,11 +514,13 @@ public sealed class TerrainTreeFrustumCuller : MonoBehaviour
                 continue;
             }
 
+            ApplyLoadedInstanceRenderMode(loaded, TreeCellRenderMode.Visible);
             ReleaseInstance(loaded.PrototypeIndex, loaded.GameObject);
         }
 
         cell.LoadedInstances.Clear();
         cell.IsLoaded = false;
+        cell.RenderMode = TreeCellRenderMode.Hidden;
 
         if (cell.Root != null)
         {
@@ -408,6 +534,23 @@ public sealed class TerrainTreeFrustumCuller : MonoBehaviour
         {
             UnloadCell(cells[i]);
         }
+    }
+
+    private LoadedTreeInstance CreateLoadedTreeInstance(int prototypeIndex, GameObject instance)
+    {
+        Renderer[] renderers = instance.GetComponentsInChildren<Renderer>(true);
+        CachedRendererState[] cachedRenderers = new CachedRendererState[renderers.Length];
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            cachedRenderers[i] = new CachedRendererState(renderers[i]);
+        }
+
+        return new LoadedTreeInstance
+        {
+            PrototypeIndex = prototypeIndex,
+            GameObject = instance,
+            Renderers = cachedRenderers,
+        };
     }
 
     private GameObject AcquireInstance(int prototypeIndex)
