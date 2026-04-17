@@ -21,16 +21,18 @@ public sealed class TerrainGrassFrustumCuller : MonoBehaviour
 
     private readonly struct RenderPass
     {
-        public RenderPass(Mesh mesh, int subMeshIndex, Material material)
+        public RenderPass(Mesh mesh, int subMeshIndex, Material material, bool shaderReceivesShadows)
         {
             Mesh = mesh;
             SubMeshIndex = subMeshIndex;
             Material = material;
+            ShaderReceivesShadows = shaderReceivesShadows;
         }
 
         public Mesh Mesh { get; }
         public int SubMeshIndex { get; }
         public Material Material { get; }
+        public bool ShaderReceivesShadows { get; }
     }
 
     private sealed class PrototypeInfo
@@ -64,12 +66,15 @@ public sealed class TerrainGrassFrustumCuller : MonoBehaviour
     private readonly List<GrassCell> cells = new();
     private readonly List<PrototypeInfo> prototypes = new();
     private readonly Matrix4x4[] drawBuffer = new Matrix4x4[511];
+    private MaterialPropertyBlock sharedMaterialPropertyBlock;
 
     private bool isBuilt;
     private bool isBuilding;
     private bool builtFromTerrainDetailData;
     private float originalDetailObjectDistance = -1f;
     private Coroutine buildRoutine;
+
+    private static readonly int ReceiveShadowsPropertyId = Shader.PropertyToID("_ReceiveShadows");
 
     private void Reset()
     {
@@ -79,6 +84,8 @@ public sealed class TerrainGrassFrustumCuller : MonoBehaviour
 
     private void Awake()
     {
+        EnsureMaterialPropertyBlock();
+
         if (terrain == null)
         {
             terrain = GetComponent<Terrain>();
@@ -87,6 +94,14 @@ public sealed class TerrainGrassFrustumCuller : MonoBehaviour
         if (targetCamera == null)
         {
             targetCamera = Camera.main;
+        }
+    }
+
+    private void EnsureMaterialPropertyBlock()
+    {
+        if (sharedMaterialPropertyBlock == null)
+        {
+            sharedMaterialPropertyBlock = new MaterialPropertyBlock();
         }
     }
 
@@ -280,7 +295,9 @@ public sealed class TerrainGrassFrustumCuller : MonoBehaviour
                 }
 
                 material.enableInstancing = true;
-                passes.Add(new RenderPass(meshFilter.sharedMesh, subMeshIndex, material));
+                bool shaderReceivesShadows = !material.HasProperty(ReceiveShadowsPropertyId) ||
+                    material.GetFloat(ReceiveShadowsPropertyId) > 0.5f;
+                passes.Add(new RenderPass(meshFilter.sharedMesh, subMeshIndex, material, shaderReceivesShadows));
             }
 
             if (passes.Count == 0)
@@ -545,11 +562,20 @@ public sealed class TerrainGrassFrustumCuller : MonoBehaviour
 
     private void DrawBufferedInstances(RenderPass renderPass, Bounds worldBounds, int count)
     {
+        EnsureMaterialPropertyBlock();
+        sharedMaterialPropertyBlock.Clear();
+        if (renderPass.Material != null && renderPass.Material.HasProperty(ReceiveShadowsPropertyId))
+        {
+            float effectiveReceiveShadows = receiveShadows && renderPass.ShaderReceivesShadows ? 1f : 0f;
+            sharedMaterialPropertyBlock.SetFloat(ReceiveShadowsPropertyId, effectiveReceiveShadows);
+        }
+
         RenderParams renderParams = new RenderParams(renderPass.Material)
         {
             worldBounds = worldBounds,
             shadowCastingMode = castShadows ? ShadowCastingMode.On : ShadowCastingMode.Off,
             receiveShadows = receiveShadows,
+            matProps = sharedMaterialPropertyBlock,
         };
 
         Graphics.RenderMeshInstanced(renderParams, renderPass.Mesh, renderPass.SubMeshIndex, drawBuffer, count);

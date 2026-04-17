@@ -1,4 +1,4 @@
-Shader "Custom/Vit/PlantWind_URP"
+Shader "Custom/Vit/Plant_URP"
 {
     Properties
     {
@@ -279,9 +279,11 @@ Shader "Custom/Vit/PlantWind_URP"
                     Light mainLight = GetMainLight(shadowCoord);
                     float shadowAttenuation = saturate(mainLight.shadowAttenuation);
                     float3 ambientFill = saturate(SampleSH(normalWS));
-                    float3 shadowFill = max(ambientFill, _ShadowFloor.xxx);
-                    float3 shadowMix = lerp(shadowFill, 1.0.xxx, shadowAttenuation);
-                    color *= lerp(1.0.xxx, shadowMix, saturate(_ShadowStrength));
+                    float3 shadowFloor = float3(_ShadowFloor, _ShadowFloor, _ShadowFloor);
+                    float3 litColor = float3(1.0, 1.0, 1.0);
+                    float3 shadowFill = max(ambientFill, shadowFloor);
+                    float3 shadowMix = lerp(shadowFill, litColor, shadowAttenuation);
+                    color *= lerp(litColor, shadowMix, saturate(_ShadowStrength));
                 }
 
                 return half4(color, alpha);
