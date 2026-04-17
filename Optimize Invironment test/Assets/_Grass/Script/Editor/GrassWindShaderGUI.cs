@@ -125,6 +125,7 @@ public sealed class GrassWindShaderGUI : ShaderGUI
             DrawNormalizedDirection2D(
                 windDirection,
                 MakeLabel("Wind Direction (XZ)", "Global wind direction in XZ space."));
+            materialEditor.EnableInstancingField();
             EditorGUILayout.HelpBox(
                 "Grass Lean controls the base bend. Visible motion comes from Wave Shape and Wind Texture scrolling.",
                 MessageType.None);
