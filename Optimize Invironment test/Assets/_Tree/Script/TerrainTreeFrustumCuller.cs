@@ -7,61 +7,65 @@ using UnityEngine.Rendering;
 [DisallowMultipleComponent]
 public sealed class TerrainTreeFrustumCuller : MonoBehaviour
 {
+    private enum RenderBackend
+    {
+        NativeTerrain,
+        CustomInstanced,
+    }
+
     private enum TreeCellRenderMode
     {
         Hidden,
-        Visible,
+        Near,
+        Mid,
         ShadowOnly,
     }
 
     [Serializable]
-    private struct TreeRecord
+    private sealed class CellBatch
     {
-        public int PrototypeIndex;
-        public Vector3 Position;
-        public Quaternion Rotation;
-        public Vector3 Scale;
-    }
-
-    private sealed class PrototypeInfo
-    {
-        public string Name = string.Empty;
-        public GameObject Prefab;
-        public Matrix4x4 PrototypeLocalMatrix = Matrix4x4.identity;
-        public readonly Queue<GameObject> Pool = new();
-    }
-
-    private sealed class LoadedTreeInstance
-    {
-        public int PrototypeIndex;
-        public GameObject GameObject;
-        public CachedRendererState[] Renderers = Array.Empty<CachedRendererState>();
-    }
-
-    private readonly struct CachedRendererState
-    {
-        public CachedRendererState(Renderer renderer)
-        {
-            Renderer = renderer;
-            ShadowCastingMode = renderer != null ? renderer.shadowCastingMode : ShadowCastingMode.On;
-            WasEnabled = renderer != null && renderer.enabled;
-            WasForceRenderingOff = renderer != null && renderer.forceRenderingOff;
-        }
-
-        public Renderer Renderer { get; }
-        public ShadowCastingMode ShadowCastingMode { get; }
-        public bool WasEnabled { get; }
-        public bool WasForceRenderingOff { get; }
+        public readonly List<Matrix4x4> Matrices = new();
     }
 
     private sealed class TreeCell
     {
         public Bounds Bounds;
-        public readonly List<TreeRecord> Trees = new();
-        public readonly List<LoadedTreeInstance> LoadedInstances = new();
-        public GameObject Root;
-        public bool IsLoaded;
+        public CellBatch[] Batches = Array.Empty<CellBatch>();
         public TreeCellRenderMode RenderMode = TreeCellRenderMode.Hidden;
+    }
+
+    private readonly struct RenderPass
+    {
+        public RenderPass(
+            Mesh mesh,
+            int subMeshIndex,
+            Material material,
+            Matrix4x4 rendererLocalMatrix,
+            ShadowCastingMode shadowCastingMode,
+            bool receiveShadows)
+        {
+            Mesh = mesh;
+            SubMeshIndex = subMeshIndex;
+            Material = material;
+            RendererLocalMatrix = rendererLocalMatrix;
+            ShadowCastingMode = shadowCastingMode;
+            ReceiveShadows = receiveShadows;
+        }
+
+        public Mesh Mesh { get; }
+        public int SubMeshIndex { get; }
+        public Material Material { get; }
+        public Matrix4x4 RendererLocalMatrix { get; }
+        public ShadowCastingMode ShadowCastingMode { get; }
+        public bool ReceiveShadows { get; }
+    }
+
+    private sealed class PrototypeInfo
+    {
+        public string Name = string.Empty;
+        public Matrix4x4 PrototypeLocalMatrix = Matrix4x4.identity;
+        public RenderPass[] NearPasses = Array.Empty<RenderPass>();
+        public RenderPass[] MidPasses = Array.Empty<RenderPass>();
     }
 
     [Header("References")]
@@ -69,6 +73,9 @@ public sealed class TerrainTreeFrustumCuller : MonoBehaviour
     [SerializeField] private TerrainCollider terrainCollider;
     [SerializeField] private Transform activationTarget;
     [SerializeField] private Camera targetCamera;
+
+    [Header("Mode")]
+    [SerializeField] private RenderBackend renderBackend = RenderBackend.CustomInstanced;
 
     [Header("Culling")]
     [SerializeField] private bool enableDistanceCulling = true;
@@ -82,13 +89,18 @@ public sealed class TerrainTreeFrustumCuller : MonoBehaviour
     [SerializeField] private int refreshInterval = 5;
     [SerializeField] private int maxCellLoadsPerRefresh = 1;
 
+    [Header("LOD")]
+    [SerializeField] private float nearLodDistance = 25f;
+
     [Header("Runtime")]
     [SerializeField] private bool suppressBuiltInTerrainTrees = true;
     [SerializeField] private bool suppressBuiltInTerrainTreeColliders = true;
     [SerializeField] private bool logBuildStats = true;
 
     private readonly List<TreeCell> cells = new();
+    private readonly List<TreeCell> renderableCells = new();
     private readonly List<PrototypeInfo> prototypes = new();
+    private readonly Matrix4x4[] drawBuffer = new Matrix4x4[511];
 
     private bool isBuilt;
     private float originalTreeDistance = -1f;
@@ -96,8 +108,6 @@ public sealed class TerrainTreeFrustumCuller : MonoBehaviour
     private bool didCaptureTreeColliderState;
     private PropertyInfo cachedEnableTreeCollidersProperty;
     private FieldInfo cachedEnableTreeCollidersField;
-    private GameObject runtimeRoot;
-    private GameObject poolRoot;
 
     private void Reset()
     {
@@ -137,6 +147,12 @@ public sealed class TerrainTreeFrustumCuller : MonoBehaviour
             return;
         }
 
+        if (renderBackend == RenderBackend.NativeTerrain)
+        {
+            ApplyBuiltInTerrainSuppression(false);
+            return;
+        }
+
         Build();
         ApplyBuiltInTerrainSuppression(true);
     }
@@ -148,13 +164,20 @@ public sealed class TerrainTreeFrustumCuller : MonoBehaviour
             return;
         }
 
-        UnloadAllCells();
-        DestroyRuntimeRoots();
+        renderableCells.Clear();
+        cells.Clear();
+        prototypes.Clear();
+        isBuilt = false;
         ApplyBuiltInTerrainSuppression(false);
     }
 
     private void LateUpdate()
     {
+        if (renderBackend == RenderBackend.NativeTerrain)
+        {
+            return;
+        }
+
         if (!isBuilt)
         {
             Build();
@@ -167,16 +190,22 @@ public sealed class TerrainTreeFrustumCuller : MonoBehaviour
 
         if (refreshInterval <= 1 || Time.frameCount % refreshInterval == 0)
         {
-            RefreshLoadedCells();
+            RefreshRenderableCells();
         }
+
+        RenderVisibleCells();
     }
 
     [ContextMenu("Rebuild Tree Data")]
     public void Build()
     {
-        UnloadAllCells();
-        DestroyRuntimeRoots();
+        if (renderBackend == RenderBackend.NativeTerrain)
+        {
+            return;
+        }
+
         cells.Clear();
+        renderableCells.Clear();
         prototypes.Clear();
         isBuilt = false;
 
@@ -196,7 +225,10 @@ public sealed class TerrainTreeFrustumCuller : MonoBehaviour
             return;
         }
 
-        EnsureRuntimeRoots();
+        if (originalTreeDistance < 0f)
+        {
+            originalTreeDistance = terrain.treeDistance;
+        }
 
         TerrainData terrainData = terrain.terrainData;
         int[] prototypeRemap = CollectPrototypes(terrainData);
@@ -208,7 +240,8 @@ public sealed class TerrainTreeFrustumCuller : MonoBehaviour
 
         CreateCells(terrainData);
         PopulateCells(terrainData, prototypeRemap);
-        cells.RemoveAll(cell => cell.Trees.Count == 0);
+        cells.RemoveAll(IsCellEmpty);
+        RefreshRenderableCells();
 
         isBuilt = cells.Count > 0;
         ApplyBuiltInTerrainSuppression(true);
@@ -218,7 +251,10 @@ public sealed class TerrainTreeFrustumCuller : MonoBehaviour
             int treeCount = 0;
             foreach (TreeCell cell in cells)
             {
-                treeCount += cell.Trees.Count;
+                for (int prototypeIndex = 0; prototypeIndex < cell.Batches.Length; prototypeIndex++)
+                {
+                    treeCount += cell.Batches[prototypeIndex].Matrices.Count;
+                }
             }
 
             Debug.Log(
@@ -244,19 +280,121 @@ public sealed class TerrainTreeFrustumCuller : MonoBehaviour
                 continue;
             }
 
+            CollectRenderPassSets(prefab, out RenderPass[] nearPasses, out RenderPass[] midPasses);
+            if (nearPasses.Length == 0)
+            {
+                continue;
+            }
+
             remap[terrainPrototypeIndex] = prototypes.Count;
             prototypes.Add(new PrototypeInfo
             {
                 Name = prefab.name,
-                Prefab = prefab,
                 PrototypeLocalMatrix = Matrix4x4.TRS(
                     prefab.transform.localPosition,
                     prefab.transform.localRotation,
                     prefab.transform.localScale),
+                NearPasses = nearPasses,
+                MidPasses = midPasses.Length > 0 ? midPasses : nearPasses,
             });
         }
 
         return remap;
+    }
+
+    private static void CollectRenderPassSets(
+        GameObject prefab,
+        out RenderPass[] nearPasses,
+        out RenderPass[] midPasses)
+    {
+        List<RenderPass> near = new();
+        List<RenderPass> mid = new();
+        LODGroup lodGroup = prefab.GetComponent<LODGroup>();
+        if (lodGroup != null)
+        {
+            LOD[] lods = lodGroup.GetLODs();
+            near = CollectRenderPasses(prefab, GetLodRenderers(lods, 0));
+
+            for (int lodIndex = lods.Length - 1; lodIndex >= 1; lodIndex--)
+            {
+                List<RenderPass> candidate = CollectRenderPasses(prefab, GetLodRenderers(lods, lodIndex));
+                if (candidate.Count > 0)
+                {
+                    mid = candidate;
+                    break;
+                }
+            }
+        }
+
+        if (near.Count == 0)
+        {
+            near = CollectRenderPasses(prefab, prefab.GetComponentsInChildren<Renderer>(true));
+        }
+
+        if (mid.Count == 0)
+        {
+            mid = near;
+        }
+
+        nearPasses = near.ToArray();
+        midPasses = mid.ToArray();
+    }
+
+    private static Renderer[] GetLodRenderers(LOD[] lods, int index)
+    {
+        if (lods == null || index < 0 || index >= lods.Length || lods[index].renderers == null)
+        {
+            return Array.Empty<Renderer>();
+        }
+
+        return lods[index].renderers;
+    }
+
+    private static List<RenderPass> CollectRenderPasses(GameObject prefab, Renderer[] candidateRenderers)
+    {
+        List<RenderPass> passes = new();
+        Transform prefabTransform = prefab.transform;
+        for (int rendererIndex = 0; rendererIndex < candidateRenderers.Length; rendererIndex++)
+        {
+            if (candidateRenderers[rendererIndex] is not MeshRenderer meshRenderer)
+            {
+                continue;
+            }
+
+            MeshFilter meshFilter = meshRenderer.GetComponent<MeshFilter>();
+            if (meshFilter == null || meshFilter.sharedMesh == null)
+            {
+                continue;
+            }
+
+            Material[] sharedMaterials = meshRenderer.sharedMaterials;
+            if (sharedMaterials == null || sharedMaterials.Length == 0)
+            {
+                continue;
+            }
+
+            Matrix4x4 rendererLocalMatrix = prefabTransform.worldToLocalMatrix * meshRenderer.transform.localToWorldMatrix;
+            int subMeshCount = Mathf.Min(meshFilter.sharedMesh.subMeshCount, sharedMaterials.Length);
+            for (int subMeshIndex = 0; subMeshIndex < subMeshCount; subMeshIndex++)
+            {
+                Material material = sharedMaterials[subMeshIndex];
+                if (material == null)
+                {
+                    continue;
+                }
+
+                material.enableInstancing = true;
+                passes.Add(new RenderPass(
+                    meshFilter.sharedMesh,
+                    subMeshIndex,
+                    material,
+                    rendererLocalMatrix,
+                    meshRenderer.shadowCastingMode,
+                    meshRenderer.receiveShadows));
+            }
+        }
+
+        return passes;
     }
 
     private void CreateCells(TerrainData terrainData)
@@ -279,11 +417,18 @@ public sealed class TerrainTreeFrustumCuller : MonoBehaviour
                 float sizeX = Mathf.Min(clampedCellSize, terrainSize.x - x * clampedCellSize);
                 float sizeZ = Mathf.Min(clampedCellSize, terrainSize.z - z * clampedCellSize);
 
+                CellBatch[] batches = new CellBatch[prototypes.Count];
+                for (int prototypeIndex = 0; prototypeIndex < prototypes.Count; prototypeIndex++)
+                {
+                    batches[prototypeIndex] = new CellBatch();
+                }
+
                 cells.Add(new TreeCell
                 {
                     Bounds = new Bounds(
                         new Vector3(minX + sizeX * 0.5f, terrainPosition.y + boundsHeight * 0.5f, minZ + sizeZ * 0.5f),
                         new Vector3(sizeX, boundsHeight, sizeZ)),
+                    Batches = batches,
                 });
             }
         }
@@ -322,81 +467,97 @@ public sealed class TerrainTreeFrustumCuller : MonoBehaviour
                 Quaternion.Euler(0f, tree.rotation * Mathf.Rad2Deg, 0f),
                 new Vector3(tree.widthScale, tree.heightScale, tree.widthScale)) * prototypes[prototypeIndex].PrototypeLocalMatrix;
 
-            TreeRecord record = new TreeRecord
-            {
-                PrototypeIndex = prototypeIndex,
-                Position = ExtractPosition(treeMatrix),
-                Rotation = ExtractRotation(treeMatrix),
-                Scale = ExtractScale(treeMatrix),
-            };
-
-            int cellX = Mathf.Clamp((int)((record.Position.x - terrainPosition.x) / clampedCellSize), 0, Mathf.Max(0, cellCountX - 1));
-            int cellZ = Mathf.Clamp((int)((record.Position.z - terrainPosition.z) / clampedCellSize), 0, Mathf.Max(0, cellCountZ - 1));
+            Vector3 position = ExtractPosition(treeMatrix);
+            Vector3 scale = ExtractScale(treeMatrix);
+            int cellX = Mathf.Clamp((int)((position.x - terrainPosition.x) / clampedCellSize), 0, Mathf.Max(0, cellCountX - 1));
+            int cellZ = Mathf.Clamp((int)((position.z - terrainPosition.z) / clampedCellSize), 0, Mathf.Max(0, cellCountZ - 1));
             int cellIndex = cellZ * cellCountX + cellX;
 
             TreeCell cell = cells[cellIndex];
-            cell.Trees.Add(record);
-            cell.Bounds.Encapsulate(record.Position + Vector3.up * Mathf.Max(4f, record.Scale.y * 4f));
-            cell.Bounds.Encapsulate(record.Position - Vector3.up * 2f);
+            cell.Batches[prototypeIndex].Matrices.Add(treeMatrix);
+            cell.Bounds.Encapsulate(position + Vector3.up * Mathf.Max(4f, scale.y * 4f));
+            cell.Bounds.Encapsulate(position - Vector3.up * 2f);
         }
     }
 
-    private void RefreshLoadedCells()
+    private void RefreshRenderableCells()
     {
         if (targetCamera == null)
         {
             targetCamera = Camera.main;
         }
 
+        renderableCells.Clear();
+
         Vector3 anchorPosition = GetAnchorPosition();
         Vector3 cameraPosition = targetCamera != null ? targetCamera.transform.position : anchorPosition;
-        float activationDistanceSqr = activationDistance * activationDistance;
-        float effectiveUnloadDistance = Mathf.Max(unloadDistance, activationDistance + 5f);
+        float effectiveActivationDistance = Mathf.Max(0f, activationDistance);
+        float effectiveNearLodDistance = Mathf.Max(0f, nearLodDistance);
+        if (effectiveActivationDistance > 0f)
+        {
+            effectiveNearLodDistance = Mathf.Min(effectiveNearLodDistance, effectiveActivationDistance);
+        }
+
+        float activationDistanceSqr = effectiveActivationDistance * effectiveActivationDistance;
+        float nearLodDistanceSqr = effectiveNearLodDistance * effectiveNearLodDistance;
+        float effectiveUnloadDistance = Mathf.Max(unloadDistance, effectiveActivationDistance + 5f);
         float unloadDistanceSqr = effectiveUnloadDistance * effectiveUnloadDistance;
         float effectiveShadowOnlyDistance = GetEffectiveShadowOnlyDistance();
         float shadowOnlyDistanceSqr = effectiveShadowOnlyDistance * effectiveShadowOnlyDistance;
         Plane[] frustumPlanes = enableFrustumCulling && targetCamera != null
             ? GeometryUtility.CalculateFrustumPlanes(targetCamera)
             : null;
-        int remainingLoads = Mathf.Max(1, maxCellLoadsPerRefresh);
+        int remainingActivations = Mathf.Max(1, maxCellLoadsPerRefresh);
 
-        for (int i = 0; i < cells.Count; i++)
+        foreach (TreeCell cell in cells)
         {
-            TreeCell cell = cells[i];
             float sqrDistance = cell.Bounds.SqrDistance(anchorPosition);
             float cameraDistanceSqr = cell.Bounds.SqrDistance(cameraPosition);
-            bool isWithinActivationDistance = !enableDistanceCulling || sqrDistance <= activationDistanceSqr;
+            bool insideVisibleDistance = !enableDistanceCulling || sqrDistance <= activationDistanceSqr;
+            bool insideShadowRetentionDistance = !enableDistanceCulling || sqrDistance <= unloadDistanceSqr;
             bool isInsideFrustum = !enableFrustumCulling ||
                 frustumPlanes == null ||
                 GeometryUtility.TestPlanesAABB(frustumPlanes, cell.Bounds);
-            bool shouldKeepShadowOnly = enableFrustumCulling &&
-                !isInsideFrustum &&
-                keepShadowsWhenFrustumCulled &&
-                effectiveShadowOnlyDistance > 0f &&
-                cameraDistanceSqr <= shadowOnlyDistanceSqr;
-            TreeCellRenderMode desiredRenderMode = isInsideFrustum
-                ? TreeCellRenderMode.Visible
-                : shouldKeepShadowOnly ? TreeCellRenderMode.ShadowOnly : TreeCellRenderMode.Hidden;
 
-            if (!cell.IsLoaded)
+            bool shouldKeepShadowOnly = effectiveShadowOnlyDistance > 0f &&
+                cameraDistanceSqr <= shadowOnlyDistanceSqr &&
+                ((!isInsideFrustum && keepShadowsWhenFrustumCulled) ||
+                 (!insideVisibleDistance && insideShadowRetentionDistance && keepShadowsWhenDistanceCulled));
+
+            TreeCellRenderMode desiredRenderMode;
+            if (insideVisibleDistance && isInsideFrustum)
             {
-                if (isWithinActivationDistance && desiredRenderMode != TreeCellRenderMode.Hidden && remainingLoads > 0)
+                desiredRenderMode = cameraDistanceSqr <= nearLodDistanceSqr
+                    ? TreeCellRenderMode.Near
+                    : TreeCellRenderMode.Mid;
+            }
+            else if (shouldKeepShadowOnly)
+            {
+                desiredRenderMode = TreeCellRenderMode.ShadowOnly;
+            }
+            else
+            {
+                desiredRenderMode = TreeCellRenderMode.Hidden;
+            }
+
+            if (cell.RenderMode == TreeCellRenderMode.Hidden &&
+                desiredRenderMode != TreeCellRenderMode.Hidden)
+            {
+                if (remainingActivations <= 0)
                 {
-                    LoadCell(cell);
-                    SetCellRenderMode(cell, desiredRenderMode);
-                    remainingLoads--;
+                    desiredRenderMode = TreeCellRenderMode.Hidden;
                 }
-
-                continue;
+                else
+                {
+                    remainingActivations--;
+                }
             }
 
-            if (enableDistanceCulling && sqrDistance > unloadDistanceSqr)
+            cell.RenderMode = desiredRenderMode;
+            if (cell.RenderMode != TreeCellRenderMode.Hidden)
             {
-                UnloadCell(cell);
-                continue;
+                renderableCells.Add(cell);
             }
-
-            SetCellRenderMode(cell, desiredRenderMode);
         }
     }
 
@@ -416,168 +577,126 @@ public sealed class TerrainTreeFrustumCuller : MonoBehaviour
         return Mathf.Min(shadowOnlyDistance, qualityShadowDistance);
     }
 
-    private void SetCellRenderMode(TreeCell cell, TreeCellRenderMode renderMode)
+    private void RenderVisibleCells()
     {
-        if (!cell.IsLoaded || cell.Root == null || cell.RenderMode == renderMode)
+        if (renderableCells.Count == 0)
         {
             return;
         }
 
-        bool shouldKeepRootActive = renderMode != TreeCellRenderMode.Hidden;
-        if (cell.Root.activeSelf != shouldKeepRootActive)
+        for (int prototypeIndex = 0; prototypeIndex < prototypes.Count; prototypeIndex++)
         {
-            cell.Root.SetActive(shouldKeepRootActive);
-        }
-
-        if (renderMode == TreeCellRenderMode.Visible || renderMode == TreeCellRenderMode.ShadowOnly)
-        {
-            ApplyCellRenderMode(cell, renderMode);
-        }
-
-        cell.RenderMode = renderMode;
-    }
-
-    private void ApplyCellRenderMode(TreeCell cell, TreeCellRenderMode renderMode)
-    {
-        for (int i = 0; i < cell.LoadedInstances.Count; i++)
-        {
-            ApplyLoadedInstanceRenderMode(cell.LoadedInstances[i], renderMode);
+            PrototypeInfo prototype = prototypes[prototypeIndex];
+            RenderPrototypePasses(prototypeIndex, prototype.NearPasses, TreeCellRenderMode.Near);
+            RenderPrototypePasses(prototypeIndex, prototype.MidPasses, TreeCellRenderMode.Mid);
+            RenderPrototypePasses(prototypeIndex, prototype.MidPasses, TreeCellRenderMode.ShadowOnly);
         }
     }
 
-    private static void ApplyLoadedInstanceRenderMode(LoadedTreeInstance loadedInstance, TreeCellRenderMode renderMode)
+    private void RenderPrototypePasses(int prototypeIndex, RenderPass[] renderPasses, TreeCellRenderMode renderMode)
     {
-        for (int i = 0; i < loadedInstance.Renderers.Length; i++)
+        if (renderPasses == null || renderPasses.Length == 0)
         {
-            CachedRendererState cachedRenderer = loadedInstance.Renderers[i];
-            Renderer renderer = cachedRenderer.Renderer;
-            if (renderer == null)
+            return;
+        }
+
+        for (int passIndex = 0; passIndex < renderPasses.Length; passIndex++)
+        {
+            RenderPrototypePass(prototypeIndex, renderPasses[passIndex], renderMode);
+        }
+    }
+
+    private void RenderPrototypePass(int prototypeIndex, RenderPass renderPass, TreeCellRenderMode renderMode)
+    {
+        int bufferedCount = 0;
+        bool hasBufferedBounds = false;
+        Bounds bufferedBounds = default;
+
+        for (int cellIndex = 0; cellIndex < renderableCells.Count; cellIndex++)
+        {
+            TreeCell cell = renderableCells[cellIndex];
+            if (cell.RenderMode != renderMode)
             {
                 continue;
             }
 
-            renderer.enabled = cachedRenderer.WasEnabled;
-            renderer.forceRenderingOff = cachedRenderer.WasForceRenderingOff;
-            renderer.shadowCastingMode = cachedRenderer.ShadowCastingMode;
-
-            if (renderMode == TreeCellRenderMode.ShadowOnly && cachedRenderer.WasEnabled && !cachedRenderer.WasForceRenderingOff)
-            {
-                renderer.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
-            }
-        }
-    }
-
-    private void LoadCell(TreeCell cell)
-    {
-        if (cell.IsLoaded)
-        {
-            return;
-        }
-
-        if (cell.Root == null)
-        {
-            cell.Root = new GameObject("TreeCell");
-            cell.Root.transform.SetParent(runtimeRoot.transform, false);
-        }
-
-        cell.Root.SetActive(true);
-
-        for (int i = 0; i < cell.Trees.Count; i++)
-        {
-            TreeRecord tree = cell.Trees[i];
-            GameObject instance = AcquireInstance(tree.PrototypeIndex);
-            Transform instanceTransform = instance.transform;
-            instanceTransform.SetParent(cell.Root.transform, false);
-            instanceTransform.SetPositionAndRotation(tree.Position, tree.Rotation);
-            instanceTransform.localScale = tree.Scale;
-            instance.SetActive(true);
-
-            cell.LoadedInstances.Add(CreateLoadedTreeInstance(tree.PrototypeIndex, instance));
-        }
-
-        cell.IsLoaded = true;
-        cell.RenderMode = TreeCellRenderMode.Visible;
-    }
-
-    private void UnloadCell(TreeCell cell)
-    {
-        if (!cell.IsLoaded)
-        {
-            return;
-        }
-
-        for (int i = 0; i < cell.LoadedInstances.Count; i++)
-        {
-            LoadedTreeInstance loaded = cell.LoadedInstances[i];
-            if (loaded.GameObject == null)
+            List<Matrix4x4> matrices = cell.Batches[prototypeIndex].Matrices;
+            if (matrices.Count == 0)
             {
                 continue;
             }
 
-            ApplyLoadedInstanceRenderMode(loaded, TreeCellRenderMode.Visible);
-            ReleaseInstance(loaded.PrototypeIndex, loaded.GameObject);
+            bool hasCellBoundsInBuffer = false;
+            for (int sourceIndex = 0; sourceIndex < matrices.Count; sourceIndex++)
+            {
+                if (!hasCellBoundsInBuffer)
+                {
+                    if (hasBufferedBounds)
+                    {
+                        bufferedBounds.Encapsulate(cell.Bounds);
+                    }
+                    else
+                    {
+                        bufferedBounds = cell.Bounds;
+                        hasBufferedBounds = true;
+                    }
+
+                    hasCellBoundsInBuffer = true;
+                }
+
+                drawBuffer[bufferedCount] = matrices[sourceIndex] * renderPass.RendererLocalMatrix;
+                bufferedCount++;
+
+                if (bufferedCount == drawBuffer.Length)
+                {
+                    DrawBufferedInstances(renderPass, bufferedBounds, bufferedCount, renderMode);
+                    bufferedCount = 0;
+                    hasBufferedBounds = false;
+                    hasCellBoundsInBuffer = false;
+                }
+            }
         }
 
-        cell.LoadedInstances.Clear();
-        cell.IsLoaded = false;
-        cell.RenderMode = TreeCellRenderMode.Hidden;
-
-        if (cell.Root != null)
+        if (bufferedCount > 0 && hasBufferedBounds)
         {
-            cell.Root.SetActive(false);
+            DrawBufferedInstances(renderPass, bufferedBounds, bufferedCount, renderMode);
         }
     }
 
-    private void UnloadAllCells()
+    private void DrawBufferedInstances(
+        RenderPass renderPass,
+        Bounds worldBounds,
+        int count,
+        TreeCellRenderMode renderMode)
     {
-        for (int i = 0; i < cells.Count; i++)
+        if (renderPass.Material == null || renderPass.Mesh == null)
         {
-            UnloadCell(cells[i]);
-        }
-    }
-
-    private LoadedTreeInstance CreateLoadedTreeInstance(int prototypeIndex, GameObject instance)
-    {
-        Renderer[] renderers = instance.GetComponentsInChildren<Renderer>(true);
-        CachedRendererState[] cachedRenderers = new CachedRendererState[renderers.Length];
-        for (int i = 0; i < renderers.Length; i++)
-        {
-            cachedRenderers[i] = new CachedRendererState(renderers[i]);
+            return;
         }
 
-        return new LoadedTreeInstance
+        RenderParams renderParams = new RenderParams(renderPass.Material)
         {
-            PrototypeIndex = prototypeIndex,
-            GameObject = instance,
-            Renderers = cachedRenderers,
+            worldBounds = worldBounds,
+            shadowCastingMode = renderMode == TreeCellRenderMode.ShadowOnly
+                ? ShadowCastingMode.ShadowsOnly
+                : renderPass.ShadowCastingMode,
+            receiveShadows = renderMode != TreeCellRenderMode.ShadowOnly && renderPass.ReceiveShadows,
         };
+
+        Graphics.RenderMeshInstanced(renderParams, renderPass.Mesh, renderPass.SubMeshIndex, drawBuffer, count);
     }
 
-    private GameObject AcquireInstance(int prototypeIndex)
+    private bool IsCellEmpty(TreeCell cell)
     {
-        PrototypeInfo prototype = prototypes[prototypeIndex];
-        while (prototype.Pool.Count > 0)
+        for (int prototypeIndex = 0; prototypeIndex < cell.Batches.Length; prototypeIndex++)
         {
-            GameObject pooled = prototype.Pool.Dequeue();
-            if (pooled != null)
+            if (cell.Batches[prototypeIndex].Matrices.Count > 0)
             {
-                return pooled;
+                return false;
             }
         }
 
-        return Instantiate(prototype.Prefab);
-    }
-
-    private void ReleaseInstance(int prototypeIndex, GameObject instance)
-    {
-        if (instance == null)
-        {
-            return;
-        }
-
-        instance.SetActive(false);
-        instance.transform.SetParent(poolRoot.transform, false);
-        prototypes[prototypeIndex].Pool.Enqueue(instance);
+        return true;
     }
 
     private Vector3 GetAnchorPosition()
@@ -593,42 +712,6 @@ public sealed class TerrainTreeFrustumCuller : MonoBehaviour
         }
 
         return transform.position;
-    }
-
-    private void EnsureRuntimeRoots()
-    {
-        if (runtimeRoot == null)
-        {
-            runtimeRoot = new GameObject("TerrainTreeRuntime");
-            runtimeRoot.transform.SetParent(transform, false);
-            runtimeRoot.transform.localPosition = Vector3.zero;
-            runtimeRoot.transform.localRotation = Quaternion.identity;
-            runtimeRoot.transform.localScale = Vector3.one;
-        }
-
-        if (poolRoot == null)
-        {
-            poolRoot = new GameObject("TerrainTreePool");
-            poolRoot.transform.SetParent(transform, false);
-            poolRoot.transform.localPosition = Vector3.zero;
-            poolRoot.transform.localRotation = Quaternion.identity;
-            poolRoot.transform.localScale = Vector3.one;
-        }
-    }
-
-    private void DestroyRuntimeRoots()
-    {
-        if (runtimeRoot != null)
-        {
-            Destroy(runtimeRoot);
-            runtimeRoot = null;
-        }
-
-        if (poolRoot != null)
-        {
-            Destroy(poolRoot);
-            poolRoot = null;
-        }
     }
 
     private void ApplyBuiltInTerrainSuppression(bool suppress)
@@ -731,18 +814,5 @@ public sealed class TerrainTreeFrustumCuller : MonoBehaviour
             new Vector3(matrix.m00, matrix.m10, matrix.m20).magnitude,
             new Vector3(matrix.m01, matrix.m11, matrix.m21).magnitude,
             new Vector3(matrix.m02, matrix.m12, matrix.m22).magnitude);
-    }
-
-    private static Quaternion ExtractRotation(Matrix4x4 matrix)
-    {
-        Vector3 forward = new Vector3(matrix.m02, matrix.m12, matrix.m22);
-        Vector3 up = new Vector3(matrix.m01, matrix.m11, matrix.m21);
-
-        if (forward.sqrMagnitude <= 0.0001f || up.sqrMagnitude <= 0.0001f)
-        {
-            return Quaternion.identity;
-        }
-
-        return Quaternion.LookRotation(forward.normalized, up.normalized);
     }
 }
