@@ -8,6 +8,13 @@ Shader "Custom/Vit/Plant_URP"
         [Toggle] _ReceiveShadows ("Receive Shadows", Float) = 1
         _ShadowStrength ("Shadow Strength", Range(0,1)) = 1
         _ShadowFloor ("Shadow Floor", Range(0,1)) = 0
+        [Toggle] _EnableMainLight ("Enable Main Light", Float) = 1
+        _MainLightIntensity ("Main Light Intensity", Range(0,4)) = 1
+        [Toggle] _EnableAdditionalLights ("Enable Additional Lights", Float) = 1
+        _AdditionalLightIntensity ("Additional Light Intensity", Range(0,4)) = 1
+        [Toggle] _EnableAmbient ("Enable Ambient", Float) = 1
+        _AmbientIntensity ("Ambient Intensity", Range(0,4)) = 1
+        [Toggle] _TwoSidedLighting ("Two-Sided Lighting", Float) = 1
 
         [NoScaleOffset] _WindTexture ("Wind Texture", 2D) = "gray" {}
         _WindSpeed ("Grass Lean", Range(0,10)) = 10
@@ -49,6 +56,7 @@ Shader "Custom/Vit/Plant_URP"
 
         HLSLINCLUDE
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
         TEXTURE2D(_BaseMap);
         SAMPLER(sampler_BaseMap);
@@ -62,6 +70,13 @@ Shader "Custom/Vit/Plant_URP"
             float _ReceiveShadows;
             float _ShadowStrength;
             float _ShadowFloor;
+            float _EnableMainLight;
+            float _MainLightIntensity;
+            float _EnableAdditionalLights;
+            float _AdditionalLightIntensity;
+            float _EnableAmbient;
+            float _AmbientIntensity;
+            float _TwoSidedLighting;
             float _WindSpeed;
             float4 _WindDirection;
             float _EnableWaveShape;
@@ -196,6 +211,39 @@ Shader "Custom/Vit/Plant_URP"
             // instances still lean in the same global wind direction.
             return worldPos + float3(offsetXZ.x, -sag, offsetXZ.y);
         }
+
+        float GetDiffuseTerm(float3 normalWS, float3 lightDirectionWS)
+        {
+            float ndotl = dot(normalWS, lightDirectionWS);
+
+            if (GetToggle01(_TwoSidedLighting) > 0.5)
+            {
+                ndotl = abs(ndotl);
+            }
+
+            return saturate(ndotl);
+        }
+
+        float GetRealtimeShadowTerm(float shadowAttenuation)
+        {
+            float atten = saturate(shadowAttenuation);
+            float floorTerm = saturate(_ShadowFloor);
+            float shadowTerm = max(atten, floorTerm);
+            return lerp(1.0, shadowTerm, saturate(_ShadowStrength));
+        }
+
+        float3 EvaluateDiffuseLight(Light light, float3 normalWS, float intensity)
+        {
+            float shadowTerm = 1.0;
+            if (GetToggle01(_ReceiveShadows) > 0.5)
+            {
+                shadowTerm = GetRealtimeShadowTerm(light.shadowAttenuation);
+            }
+
+            float diffuse = GetDiffuseTerm(normalWS, light.direction);
+            float attenuation = light.distanceAttenuation * shadowTerm * intensity;
+            return light.color * (diffuse * attenuation);
+        }
         ENDHLSL
 
         Pass
@@ -215,6 +263,8 @@ Shader "Custom/Vit/Plant_URP"
             #pragma fragment frag
             #pragma multi_compile_instancing
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
+            #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
@@ -234,6 +284,7 @@ Shader "Custom/Vit/Plant_URP"
                 float3 worldPos : TEXCOORD1;
                 float bladeMask : TEXCOORD2;
                 float3 normalWS : TEXCOORD3;
+                float3 vertexLighting : TEXCOORD4;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -246,12 +297,27 @@ Shader "Custom/Vit/Plant_URP"
                 float bladeMask = GetBladeMaskFromUV(input.uv.y);
                 float3 baseWorldPos = TransformObjectToWorld(input.positionOS.xyz);
                 float3 worldPos = ApplyWind(baseWorldPos, bladeMask);
+                float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
+                float3 normalWSNormalized = normalize(normalWS);
 
                 output.positionHCS = TransformWorldToHClip(worldPos);
                 output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
                 output.worldPos = worldPos;
                 output.bladeMask = bladeMask;
-                output.normalWS = TransformObjectToWorldNormal(input.normalOS);
+                output.normalWS = normalWS;
+                output.vertexLighting = float3(0.0, 0.0, 0.0);
+
+#if defined(_ADDITIONAL_LIGHTS_VERTEX)
+                if (GetToggle01(_EnableAdditionalLights) > 0.5)
+                {
+                    uint lightsCount = GetAdditionalLightsCount();
+                    for (uint lightIndex = 0u; lightIndex < lightsCount; ++lightIndex)
+                    {
+                        Light light = GetAdditionalLight(lightIndex, worldPos);
+                        output.vertexLighting += EvaluateDiffuseLight(light, normalWSNormalized, 1.0);
+                    }
+                }
+#endif
                 return output;
             }
 
@@ -272,19 +338,56 @@ Shader "Custom/Vit/Plant_URP"
                     color = lerp(color, color * _TerrainColor.rgb, 0.35);
                 }
 
-                if (_ReceiveShadows > 0.5)
+                float3 normalWS = normalize(input.normalWS);
+                float3 lighting = 0.0;
+
+                if (GetToggle01(_EnableAmbient) > 0.5)
                 {
-                    float3 normalWS = normalize(input.normalWS);
-                    float4 shadowCoord = TransformWorldToShadowCoord(input.worldPos);
-                    Light mainLight = GetMainLight(shadowCoord);
-                    float shadowAttenuation = saturate(mainLight.shadowAttenuation);
-                    float3 ambientFill = saturate(SampleSH(normalWS));
-                    float3 shadowFloor = float3(_ShadowFloor, _ShadowFloor, _ShadowFloor);
-                    float3 litColor = float3(1.0, 1.0, 1.0);
-                    float3 shadowFill = max(ambientFill, shadowFloor);
-                    float3 shadowMix = lerp(shadowFill, litColor, shadowAttenuation);
-                    color *= lerp(litColor, shadowMix, saturate(_ShadowStrength));
+                    lighting += saturate(SampleSH(normalWS)) * _AmbientIntensity;
                 }
+
+                if (GetToggle01(_EnableMainLight) > 0.5)
+                {
+                    Light mainLight;
+                    if (GetToggle01(_ReceiveShadows) > 0.5)
+                    {
+                        float4 shadowCoord = TransformWorldToShadowCoord(input.worldPos);
+                        mainLight = GetMainLight(shadowCoord);
+                    }
+                    else
+                    {
+                        mainLight = GetMainLight();
+                    }
+
+                    lighting += EvaluateDiffuseLight(mainLight, normalWS, _MainLightIntensity);
+                }
+
+#if defined(_ADDITIONAL_LIGHTS)
+                if (GetToggle01(_EnableAdditionalLights) > 0.5)
+                {
+                    uint lightsCount = GetAdditionalLightsCount();
+                    half4 shadowMask = half4(1.0, 1.0, 1.0, 1.0);
+
+                    LIGHT_LOOP_BEGIN(lightsCount)
+                        Light light;
+#if defined(_ADDITIONAL_LIGHT_SHADOWS)
+                        light = GetAdditionalLight(lightIndex, input.worldPos, shadowMask);
+#else
+                        light = GetAdditionalLight(lightIndex, input.worldPos);
+#endif
+                        lighting += EvaluateDiffuseLight(light, normalWS, _AdditionalLightIntensity);
+                    LIGHT_LOOP_END
+                }
+#endif
+
+#if defined(_ADDITIONAL_LIGHTS_VERTEX)
+                if (GetToggle01(_EnableAdditionalLights) > 0.5)
+                {
+                    lighting += input.vertexLighting * _AdditionalLightIntensity;
+                }
+#endif
+
+                color *= max(lighting, 0.0);
 
                 return half4(color, alpha);
             }

@@ -7,6 +7,7 @@ using UnityEngine;
 public sealed class GrassWindShaderGUI : ShaderGUI
 {
     private static bool s_ShowCommon = true;
+    private static bool s_ShowLighting = true;
     private static bool s_ShowWindShape = true;
     private static bool s_ShowWindTexture = true;
     private static bool s_ShowColor;
@@ -20,6 +21,13 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         MaterialProperty receiveShadows = Find("_ReceiveShadows", properties);
         MaterialProperty shadowStrength = Find("_ShadowStrength", properties);
         MaterialProperty shadowFloor = Find("_ShadowFloor", properties);
+        MaterialProperty enableMainLight = Find("_EnableMainLight", properties);
+        MaterialProperty mainLightIntensity = Find("_MainLightIntensity", properties);
+        MaterialProperty enableAdditionalLights = Find("_EnableAdditionalLights", properties);
+        MaterialProperty additionalLightIntensity = Find("_AdditionalLightIntensity", properties);
+        MaterialProperty enableAmbient = Find("_EnableAmbient", properties);
+        MaterialProperty ambientIntensity = Find("_AmbientIntensity", properties);
+        MaterialProperty twoSidedLighting = Find("_TwoSidedLighting", properties);
 
         MaterialProperty windTexture = Find("_WindTexture", properties);
         MaterialProperty windSpeed = Find("_WindSpeed", properties);
@@ -49,7 +57,20 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         MaterialProperty useTerrainColor = Find("_UseTerrainColor", properties);
         MaterialProperty terrainColor = Find("_TerrainColor", properties);
 
-        DrawCommon(materialEditor, ref s_ShowCommon, baseMap, baseColor, cutoff, receiveShadows, shadowStrength, shadowFloor, windTexture, windSpeed, windDirection);
+        DrawCommon(materialEditor, ref s_ShowCommon, baseMap, baseColor, cutoff, windTexture, windSpeed, windDirection);
+        DrawLighting(
+            materialEditor,
+            ref s_ShowLighting,
+            receiveShadows,
+            shadowStrength,
+            shadowFloor,
+            enableMainLight,
+            mainLightIntensity,
+            enableAdditionalLights,
+            additionalLightIntensity,
+            enableAmbient,
+            ambientIntensity,
+            twoSidedLighting);
         DrawWindShape(
             materialEditor,
             ref s_ShowWindShape,
@@ -85,9 +106,6 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         MaterialProperty baseMap,
         MaterialProperty baseColor,
         MaterialProperty cutoff,
-        MaterialProperty receiveShadows,
-        MaterialProperty shadowStrength,
-        MaterialProperty shadowFloor,
         MaterialProperty windTexture,
         MaterialProperty windSpeed,
         MaterialProperty windDirection)
@@ -108,18 +126,6 @@ public sealed class GrassWindShaderGUI : ShaderGUI
                 cutoff,
                 MakeLabel("Alpha Cutoff", "Pixels below this alpha threshold are clipped."));
             materialEditor.ShaderProperty(
-                receiveShadows,
-                MakeLabel("Receive Shadows", "Enable real-time shadow reception from the URP main light."));
-            if (receiveShadows != null && receiveShadows.floatValue > 0.5f)
-            {
-                materialEditor.ShaderProperty(
-                    shadowStrength,
-                    MakeLabel("Shadow Strength", "How strongly real-time shadows darken the grass."));
-                materialEditor.ShaderProperty(
-                    shadowFloor,
-                    MakeLabel("Shadow Floor", "Minimum brightness kept inside shadowed areas."));
-            }
-            materialEditor.ShaderProperty(
                 windSpeed,
                 MakeLabel("Grass Lean", "Base lean amount in the wind direction."));
             DrawNormalizedDirection2D(
@@ -128,6 +134,78 @@ public sealed class GrassWindShaderGUI : ShaderGUI
             materialEditor.EnableInstancingField();
             EditorGUILayout.HelpBox(
                 "Grass Lean controls the base bend. Visible motion comes from Wave Shape and Wind Texture scrolling.",
+                MessageType.None);
+            EditorGUILayout.Space(4);
+        }
+
+        EditorGUILayout.EndFoldoutHeaderGroup();
+    }
+
+    private static void DrawLighting(
+        MaterialEditor materialEditor,
+        ref bool foldout,
+        MaterialProperty receiveShadows,
+        MaterialProperty shadowStrength,
+        MaterialProperty shadowFloor,
+        MaterialProperty enableMainLight,
+        MaterialProperty mainLightIntensity,
+        MaterialProperty enableAdditionalLights,
+        MaterialProperty additionalLightIntensity,
+        MaterialProperty enableAmbient,
+        MaterialProperty ambientIntensity,
+        MaterialProperty twoSidedLighting)
+    {
+        foldout = EditorGUILayout.BeginFoldoutHeaderGroup(foldout, "Lighting");
+        if (foldout)
+        {
+            materialEditor.ShaderProperty(
+                enableMainLight,
+                MakeLabel("Enable Main Light", "Use the URP main directional light contribution."));
+            if (enableMainLight.floatValue > 0.5f)
+            {
+                materialEditor.ShaderProperty(
+                    mainLightIntensity,
+                    MakeLabel("Main Intensity", "Brightness multiplier for the main light."));
+            }
+
+            materialEditor.ShaderProperty(
+                enableAdditionalLights,
+                MakeLabel("Enable Additional Lights", "Use URP additional lights such as point, spot, and extra directional lights."));
+            if (enableAdditionalLights.floatValue > 0.5f)
+            {
+                materialEditor.ShaderProperty(
+                    additionalLightIntensity,
+                    MakeLabel("Additional Intensity", "Brightness multiplier for additional lights."));
+            }
+
+            materialEditor.ShaderProperty(
+                enableAmbient,
+                MakeLabel("Enable Ambient", "Use spherical harmonics ambient fill from the scene lighting."));
+            if (enableAmbient.floatValue > 0.5f)
+            {
+                materialEditor.ShaderProperty(
+                    ambientIntensity,
+                    MakeLabel("Ambient Intensity", "Brightness multiplier for ambient fill."));
+            }
+
+            materialEditor.ShaderProperty(
+                twoSidedLighting,
+                MakeLabel("Two-Sided Lighting", "Light both sides of foliage cards so the back face does not turn black."));
+            materialEditor.ShaderProperty(
+                receiveShadows,
+                MakeLabel("Receive Shadows", "Enable real-time shadow reception from URP lights."));
+            if (receiveShadows != null && receiveShadows.floatValue > 0.5f)
+            {
+                materialEditor.ShaderProperty(
+                    shadowStrength,
+                    MakeLabel("Shadow Strength", "How strongly real-time shadows darken the material."));
+                materialEditor.ShaderProperty(
+                    shadowFloor,
+                    MakeLabel("Shadow Floor", "Minimum lighting preserved inside shadowed areas."));
+            }
+
+            EditorGUILayout.HelpBox(
+                "Main Light restores shape under the primary directional light. Additional Lights makes point and spot lights affect the material. Ambient keeps shaded foliage from collapsing to black.",
                 MessageType.None);
             EditorGUILayout.Space(4);
         }
