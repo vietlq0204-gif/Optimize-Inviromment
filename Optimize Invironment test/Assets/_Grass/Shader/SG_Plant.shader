@@ -10,10 +10,10 @@ Shader "Custom/Vit/Plant_URP"
         _ShadowFloor ("Shadow Floor", Range(0,1)) = 0
         [Toggle] _EnableMainLight ("Enable Main Light", Float) = 1
         _MainLightIntensity ("Main Light Intensity", Range(0,4)) = 1
-        [Toggle] _EnableAdditionalLights ("Enable Additional Lights", Float) = 1
+        [Toggle] _EnableAdditionalLights ("Enable Additional Lights", Float) = 0
         _AdditionalLightIntensity ("Additional Light Intensity", Range(0,4)) = 1
         [Toggle] _EnableAmbient ("Enable Ambient", Float) = 1
-        _AmbientIntensity ("Ambient Intensity", Range(0,4)) = 1
+        _AmbientIntensity ("Ambient Intensity", Range(0,4)) = 0.8
         [Toggle] _TwoSidedLighting ("Two-Sided Lighting", Float) = 1
 
         [NoScaleOffset] _WindTexture ("Wind Texture", 2D) = "gray" {}
@@ -22,23 +22,23 @@ Shader "Custom/Vit/Plant_URP"
 
         [Toggle] _EnableWaveShape ("Enable Wave Shape", Float) = 1
         [HideInInspector] _WaveFrequency ("Wave Frequency", Range(0.1,12)) = 3
-        [HideInInspector] _WaveSpacingVariation ("Wave Spacing Variation", Range(0,2)) = 2
-        [HideInInspector] _WaveSpeed ("Wave Speed", Range(0,8)) = 8
-        [HideInInspector] _WaveStrength ("Wave Strength", Range(0,2)) = 0.4
+        [HideInInspector] _WaveSpacingVariation ("Wave Spacing Variation", Range(0,2)) = 0.8
+        [HideInInspector] _WaveSpeed ("Wave Speed", Range(0,8)) = 7
+        [HideInInspector] _WaveStrength ("Wave Strength", Range(0,2)) = 0.2
         [HideInInspector] _WaveBodyInfluence ("Body Wave", Range(0,1)) = 0.5
         [HideInInspector] _WaveTipInfluence ("Tip Wave", Range(0,1)) = 1
         [HideInInspector] _WaveLateralInfluence ("Lateral Wave", Range(0,1)) = 1
 
         [HideInInspector] _WindTextureScale ("Texture Scale", Vector) = (60,50,0,0)
-        [HideInInspector] _WindTextureScrollSpeed ("Texture Scroll Speed", Range(0,5)) = 0.25
+        [HideInInspector] _WindTextureScrollSpeed ("Texture Scroll Speed", Range(0,5)) = 0.2
         [HideInInspector] _WindTextureContrast ("Texture Contrast", Vector) = (0.2,0.8,0,0)
-        [HideInInspector] _WindTextureInfluence ("Texture Influence", Range(0,1)) = 0.5
+        [HideInInspector] _WindTextureInfluence ("Texture Influence", Range(0,1)) = 0.3
         [HideInInspector] _WindTextureWaveInfluence ("Texture To Wave", Range(0,1)) = 1
 
-        [HideInInspector] _NearColor ("Near Color", Color) = (1,0.8753432,0,1)
-        [HideInInspector] _FarColor ("Far Color", Color) = (1,1,1,1)
-        [HideInInspector] _NearFarRange ("Near/Far Range", Vector) = (3,18,0,0)
-        [HideInInspector] _BottomColor ("Bottom Color", Color) = (0.6981132,0.6981132,0.6981132,1)
+        [HideInInspector] _NearColor ("Near Color", Color) = (0.460991,0.5169811,0.2370309,1)
+        [HideInInspector] _FarColor ("Far Color", Color) = (0.5461166,0.6226414,0.229085,1)
+        [HideInInspector] _NearFarRange ("Near/Far Range", Vector) = (5,18,0,0)
+        [HideInInspector] _BottomColor ("Bottom Color", Color) = (0.3660378,0.3660378,0.3660378,1)
         [HideInInspector] _HeightBlend ("Height Blend", Range(0,20)) = 4.5
 
         [HideInInspector] _UseTerrainColor ("Use Terrain Color", Float) = 0
