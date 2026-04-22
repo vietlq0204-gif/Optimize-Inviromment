@@ -72,4 +72,26 @@ float3 ApplyWind(float3 worldPos, float bladeMask)
     return worldPos + float3(offsetXZ.x, -sag, offsetXZ.y);
 }
 
+float3 ApplyCameraCompensation(float3 worldPos, float3 normalWS, float bladeMask)
+{
+    float cameraBendStrength = saturate(_CameraBendStrength);
+    float2 cameraForwardXZ = _GrassCameraForwardWS.xz;
+    float cameraForwardLengthSq = dot(cameraForwardXZ, cameraForwardXZ);
+    if (cameraBendStrength <= 0.0001 || cameraForwardLengthSq <= 0.0001)
+    {
+        return worldPos;
+    }
+
+    cameraForwardXZ *= rsqrt(cameraForwardLengthSq);
+    float3 cameraForwardWS = normalize(_GrassCameraForwardWS.xyz + float3(0.0001, 0.0001, 0.0001));
+    float3 normalWSNormalized = normalize(normalWS);
+    float cameraFacing = saturate(dot(normalWSNormalized, -cameraForwardWS));
+    float rootLock = smoothstep(0.08, 0.28, bladeMask);
+    float tipInfluence = rootLock * pow(bladeMask, 1.35);
+    float compensation = cameraBendStrength * cameraFacing * cameraFacing * tipInfluence;
+
+    worldPos.xz += cameraForwardXZ * compensation;
+    return worldPos;
+}
+
 #endif

@@ -19,6 +19,7 @@ Shader "Custom/Vit/Plant_URP"
         [NoScaleOffset] _WindTexture ("Wind Texture", 2D) = "gray" {}
         _WindSpeed ("Grass Lean", Range(0,10)) = 10
         _WindDirection ("Wind Direction XZ", Vector) = (0.4472136,0.8944272,0,0)
+        _CameraBendStrength ("Camera Bend Strength", Range(0,1)) = 0.15
 
         [Toggle] _EnableWaveShape ("Enable Wave Shape", Float) = 1
         [HideInInspector] _WaveFrequency ("Wave Frequency", Range(0.1,12)) = 3
@@ -52,6 +53,9 @@ Shader "Custom/Vit/Plant_URP"
         [HideInInspector] _InteractionRadiusMultiplier ("Interaction Radius Multiplier", Range(0.25,4)) = 1.2
         [HideInInspector] _InteractionVerticalRange ("Interaction Vertical Range", Range(0.1,5)) = 1.2
         [HideInInspector] _InteractionTrail ("Interaction Trail Response", Range(0,1)) = 0.77
+        [HideInInspector] _InteractionRecoveryStrength ("Interaction Recovery Strength", Range(0,1)) = 0.22
+        [HideInInspector] _InteractionRecoveryFrequency ("Interaction Recovery Frequency", Range(0,24)) = 4.5
+        [HideInInspector] _InteractionRecoveryNoiseScale ("Interaction Recovery Noise Scale", Range(0,8)) = 0.75
     }
 
     SubShader
@@ -72,10 +76,11 @@ Shader "Custom/Vit/Plant_URP"
         #include "Assets/_Grass/Shader/Includes/SG_PlantTerrainBlend.hlsl"
         #include "Assets/_Grass/Shader/Includes/SG_PlantLighting.hlsl"
 
-        float3 ApplyPlantMotion(float3 worldPos, float bladeMask)
+        float3 ApplyPlantMotion(float3 worldPos, float3 normalWS, float bladeMask)
         {
             float3 animatedWorldPos = ApplyWind(worldPos, bladeMask);
-            return ApplyInteraction(animatedWorldPos, bladeMask);
+            animatedWorldPos = ApplyInteraction(animatedWorldPos, bladeMask);
+            return ApplyCameraCompensation(animatedWorldPos, normalWS, bladeMask);
         }
         ENDHLSL
 
@@ -127,8 +132,8 @@ Shader "Custom/Vit/Plant_URP"
 
                 float bladeMask = GetBladeMaskFromUV(input.uv.y);
                 float3 baseWorldPos = TransformObjectToWorld(input.positionOS.xyz);
-                float3 worldPos = ApplyPlantMotion(baseWorldPos, bladeMask);
                 float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
+                float3 worldPos = ApplyPlantMotion(baseWorldPos, normalWS, bladeMask);
                 float3 normalWSNormalized = normalize(normalWS);
 
                 output.positionHCS = TransformWorldToHClip(worldPos);
@@ -266,8 +271,8 @@ Shader "Custom/Vit/Plant_URP"
             {
                 float bladeMask = GetBladeMaskFromUV(input.uv.y);
                 float3 baseWorldPos = TransformObjectToWorld(input.positionOS.xyz);
-                float3 worldPos = ApplyPlantMotion(baseWorldPos, bladeMask);
                 float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
+                float3 worldPos = ApplyPlantMotion(baseWorldPos, normalWS, bladeMask);
 
             #if _CASTING_PUNCTUAL_LIGHT_SHADOW
                 float3 lightDirectionWS = normalize(_LightPosition - worldPos);

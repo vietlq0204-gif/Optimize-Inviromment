@@ -22,6 +22,7 @@ CBUFFER_START(UnityPerMaterial)
     float _TwoSidedLighting;
     float _WindSpeed;
     float4 _WindDirection;
+    float _CameraBendStrength;
     float _EnableWaveShape;
     float _WaveFrequency;
     float _WaveSpacingVariation;
@@ -50,7 +51,12 @@ CBUFFER_START(UnityPerMaterial)
     float _InteractionRadiusMultiplier;
     float _InteractionVerticalRange;
     float _InteractionTrail;
+    float _InteractionRecoveryStrength;
+    float _InteractionRecoveryFrequency;
+    float _InteractionRecoveryNoiseScale;
 CBUFFER_END
+
+float4 _GrassCameraForwardWS;
 
 float GetBladeMaskFromUV(float uvY)
 {

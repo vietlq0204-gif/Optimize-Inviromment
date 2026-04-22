@@ -33,6 +33,7 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         MaterialProperty windTexture = Find("_WindTexture", properties);
         MaterialProperty windSpeed = Find("_WindSpeed", properties);
         MaterialProperty windDirection = Find("_WindDirection", properties);
+        MaterialProperty cameraBendStrength = Find("_CameraBendStrength", properties);
 
         MaterialProperty enableWaveShape = Find("_EnableWaveShape", properties);
         MaterialProperty waveFrequency = Find("_WaveFrequency", properties);
@@ -65,8 +66,11 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         MaterialProperty interactionRadiusMultiplier = Find("_InteractionRadiusMultiplier", properties);
         MaterialProperty interactionVerticalRange = Find("_InteractionVerticalRange", properties);
         MaterialProperty interactionTrail = Find("_InteractionTrail", properties);
+        MaterialProperty interactionRecoveryStrength = Find("_InteractionRecoveryStrength", properties);
+        MaterialProperty interactionRecoveryFrequency = Find("_InteractionRecoveryFrequency", properties);
+        MaterialProperty interactionRecoveryNoiseScale = Find("_InteractionRecoveryNoiseScale", properties);
 
-        DrawCommon(materialEditor, ref s_ShowCommon, baseMap, baseColor, cutoff, windTexture, windSpeed, windDirection);
+        DrawCommon(materialEditor, ref s_ShowCommon, baseMap, baseColor, cutoff, windTexture, windSpeed, windDirection, cameraBendStrength);
         DrawLighting(
             materialEditor,
             ref s_ShowLighting,
@@ -110,7 +114,10 @@ public sealed class GrassWindShaderGUI : ShaderGUI
             interactionFlatten,
             interactionRadiusMultiplier,
             interactionVerticalRange,
-            interactionTrail);
+            interactionTrail,
+            interactionRecoveryStrength,
+            interactionRecoveryFrequency,
+            interactionRecoveryNoiseScale);
         DrawBakeTools(materialEditor);
     }
 
@@ -127,32 +134,36 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         MaterialProperty cutoff,
         MaterialProperty windTexture,
         MaterialProperty windSpeed,
-        MaterialProperty windDirection)
+        MaterialProperty windDirection,
+        MaterialProperty cameraBendStrength)
     {
         foldout = EditorGUILayout.BeginFoldoutHeaderGroup(foldout, "Common");
         if (foldout)
         {
             materialEditor.TexturePropertySingleLine(
-                MakeLabel("Base Map", "Base color texture. Alpha drives the cutout mask."),
+                MakeLabel("Base Map", "Texture màu cơ bản của cỏ. Kênh alpha dùng để cắt hình lá hoặc blade."),
                 baseMap);
             materialEditor.ShaderProperty(
                 baseColor,
-                MakeLabel("Base Color", "Tint multiplied with the base texture."));
+                MakeLabel("Base Color", "Màu phủ nhân thêm vào Base Map để đổi tông tổng thể của cỏ."));
             materialEditor.TexturePropertySingleLine(
-                MakeLabel("Wind Texture", "World-space wind field texture that controls stronger and weaker gust areas."),
+                MakeLabel("Wind Texture", "Texture gió trong world-space, quyết định vùng nào gió mạnh và vùng nào gió yếu."),
                 windTexture);
             materialEditor.ShaderProperty(
                 cutoff,
-                MakeLabel("Alpha Cutoff", "Pixels below this alpha threshold are clipped."));
+                MakeLabel("Alpha Cutoff", "Pixel có alpha thấp hơn ngưỡng này sẽ bị cắt bỏ."));
             materialEditor.ShaderProperty(
                 windSpeed,
-                MakeLabel("Grass Lean", "Base lean amount in the wind direction."));
+                MakeLabel("Grass Lean", "Độ nghiêng cơ bản của cỏ theo hướng gió."));
             DrawNormalizedDirection2D(
                 windDirection,
-                MakeLabel("Wind Direction (XZ)", "Global wind direction in XZ space."));
+                MakeLabel("Wind Direction (XZ)", "Hướng gió toàn cục trên mặt phẳng XZ."));
+            materialEditor.ShaderProperty(
+                cameraBendStrength,
+                MakeLabel("Camera Bend Strength", "Đẩy nhẹ phần ngọn theo hướng camera để giảm lộ khe giữa các card cỏ."));
             materialEditor.EnableInstancingField();
             EditorGUILayout.HelpBox(
-                "Grass Lean controls the base bend. Visible motion comes from Wave Shape and Wind Texture scrolling.",
+                "Grass Lean quyết định độ nghiêng nền của cỏ. Camera Bend Strength là mẹo thị giác để giảm lộ khe với quad grass. Chuyển động nhìn thấy rõ sẽ đến từ Wave Shape và phần scroll của Wind Texture.",
                 MessageType.None);
             EditorGUILayout.Space(4);
         }
@@ -179,52 +190,52 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         {
             materialEditor.ShaderProperty(
                 enableMainLight,
-                MakeLabel("Enable Main Light", "Use the URP main directional light contribution."));
+                MakeLabel("Enable Main Light", "Bật ảnh hưởng của directional light chính trong URP."));
             if (enableMainLight.floatValue > 0.5f)
             {
                 materialEditor.ShaderProperty(
                     mainLightIntensity,
-                    MakeLabel("Main Intensity", "Brightness multiplier for the main light."));
+                    MakeLabel("Main Intensity", "Hệ số cường độ sáng của main light."));
             }
 
             materialEditor.ShaderProperty(
                 enableAdditionalLights,
-                MakeLabel("Enable Additional Lights", "Use URP additional lights such as point, spot, and extra directional lights."));
+                MakeLabel("Enable Additional Lights", "Bật ảnh hưởng của các light phụ như point, spot hoặc directional bổ sung."));
             if (enableAdditionalLights.floatValue > 0.5f)
             {
                 materialEditor.ShaderProperty(
                     additionalLightIntensity,
-                    MakeLabel("Additional Intensity", "Brightness multiplier for additional lights."));
+                    MakeLabel("Additional Intensity", "Hệ số cường độ sáng của các light phụ."));
             }
 
             materialEditor.ShaderProperty(
                 enableAmbient,
-                MakeLabel("Enable Ambient", "Use spherical harmonics ambient fill from the scene lighting."));
+                MakeLabel("Enable Ambient", "Bật ánh sáng môi trường lấy từ ambient lighting của scene."));
             if (enableAmbient.floatValue > 0.5f)
             {
                 materialEditor.ShaderProperty(
                     ambientIntensity,
-                    MakeLabel("Ambient Intensity", "Brightness multiplier for ambient fill."));
+                    MakeLabel("Ambient Intensity", "Hệ số cường độ của ánh sáng môi trường."));
             }
 
             materialEditor.ShaderProperty(
                 twoSidedLighting,
-                MakeLabel("Two-Sided Lighting", "Light both sides of foliage cards so the back face does not turn black."));
+                MakeLabel("Two-Sided Lighting", "Tính sáng cho cả hai mặt để mặt sau của foliage không bị đen."));
             materialEditor.ShaderProperty(
                 receiveShadows,
-                MakeLabel("Receive Shadows", "Enable real-time shadow reception from URP lights."));
+                MakeLabel("Receive Shadows", "Cho phép material nhận bóng realtime từ light trong URP."));
             if (receiveShadows != null && receiveShadows.floatValue > 0.5f)
             {
                 materialEditor.ShaderProperty(
                     shadowStrength,
-                    MakeLabel("Shadow Strength", "How strongly real-time shadows darken the material."));
+                    MakeLabel("Shadow Strength", "Mức độ bóng realtime làm tối material mạnh tới đâu."));
                 materialEditor.ShaderProperty(
                     shadowFloor,
-                    MakeLabel("Shadow Floor", "Minimum lighting preserved inside shadowed areas."));
+                    MakeLabel("Shadow Floor", "Lượng sáng tối thiểu còn giữ lại trong vùng bị bóng che."));
             }
 
             EditorGUILayout.HelpBox(
-                "Main Light restores shape under the primary directional light. Additional Lights makes point and spot lights affect the material. Ambient keeps shaded foliage from collapsing to black.",
+                "Main Light giữ lại khối chính dưới directional light. Additional Lights cho point và spot light tác động lên cỏ. Ambient giúp vùng tối không bị sụp thành đen đặc.",
                 MessageType.None);
             EditorGUILayout.Space(4);
         }
@@ -249,29 +260,29 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         {
             materialEditor.ShaderProperty(
                 enableWaveShape,
-                MakeLabel("Enable Wave Motion", "Toggle the procedural wave layer."));
+                MakeLabel("Enable Wave Motion", "Bật hoặc tắt lớp chuyển động sóng procedural của cỏ."));
             EditorGUI.BeginDisabledGroup(enableWaveShape.floatValue < 0.5f);
             materialEditor.ShaderProperty(
                 waveFrequency,
-                MakeLabel("Wave Frequency", "Wave density along the wind direction."));
+                MakeLabel("Wave Frequency", "Mật độ sóng theo hướng gió."));
             materialEditor.ShaderProperty(
                 waveSpacingVariation,
-                MakeLabel("Wave Spacing Variation", "Irregular spacing between wave bands."));
+                MakeLabel("Wave Spacing Variation", "Độ ngẫu nhiên của khoảng cách giữa các dải sóng."));
             materialEditor.ShaderProperty(
                 waveSpeed,
-                MakeLabel("Wave Speed", "Travel speed of the wave layer."));
+                MakeLabel("Wave Speed", "Tốc độ di chuyển của lớp sóng."));
             materialEditor.ShaderProperty(
                 waveStrength,
-                MakeLabel("Wave Strength", "Overall wave amplitude."));
+                MakeLabel("Wave Strength", "Biên độ tổng thể của chuyển động sóng."));
             materialEditor.ShaderProperty(
                 waveBodyInfluence,
-                MakeLabel("Body Wave", "Wave influence over the blade body."));
+                MakeLabel("Body Wave", "Mức ảnh hưởng của sóng lên phần thân cỏ."));
             materialEditor.ShaderProperty(
                 waveTipInfluence,
-                MakeLabel("Tip Wave", "Wave influence over the blade tip."));
+                MakeLabel("Tip Wave", "Mức ảnh hưởng của sóng lên phần ngọn cỏ."));
             materialEditor.ShaderProperty(
                 waveLateralInfluence,
-                MakeLabel("Lateral Wave", "Side-to-side wave motion."));
+                MakeLabel("Lateral Wave", "Độ lắc ngang trái phải của sóng."));
             EditorGUI.EndDisabledGroup();
             EditorGUILayout.Space(4);
         }
@@ -293,21 +304,21 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         {
             materialEditor.ShaderProperty(
                 windTextureScale,
-                MakeLabel("Texture Scale", "World-space tiling of the wind texture."));
+                MakeLabel("Texture Scale", "Độ lặp của wind texture trong world-space."));
             materialEditor.ShaderProperty(
                 windTextureScrollSpeed,
-                MakeLabel("Texture Scroll Speed", "How fast the wind field travels."));
+                MakeLabel("Texture Scroll Speed", "Tốc độ trôi của trường gió trong wind texture."));
             materialEditor.ShaderProperty(
                 windTextureContrast,
-                MakeLabel("Texture Contrast", "Remap range used to shape wind texture intensity."));
+                MakeLabel("Texture Contrast", "Khoảng remap dùng để tăng hoặc giảm độ tương phản của wind texture."));
             materialEditor.ShaderProperty(
                 windTextureInfluence,
-                MakeLabel("Lean Influence", "How much the wind texture affects base leaning."));
+                MakeLabel("Lean Influence", "Mức độ wind texture ảnh hưởng lên độ nghiêng cơ bản của cỏ."));
             materialEditor.ShaderProperty(
                 windTextureWaveInfluence,
-                MakeLabel("Wave Influence", "How much the wind texture modulates the wave layer."));
+                MakeLabel("Wave Influence", "Mức độ wind texture điều chế lớp sóng."));
             EditorGUILayout.HelpBox(
-                "Wind Texture acts as the main gust field. Wind Direction rotates sampling, while Scroll Speed moves the gust pattern.",
+                "Wind Texture đóng vai trò trường gió chính. Wind Direction xoay hướng sample, còn Scroll Speed làm pattern gió trôi qua bề mặt.",
                 MessageType.None);
             EditorGUILayout.Space(4);
         }
@@ -329,19 +340,19 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         {
             materialEditor.ShaderProperty(
                 nearColor,
-                MakeLabel("Near Color", "Tint applied near the camera."));
+                MakeLabel("Near Color", "Màu tint áp dụng cho cỏ ở gần camera."));
             materialEditor.ShaderProperty(
                 farColor,
-                MakeLabel("Far Color", "Tint applied at distance."));
+                MakeLabel("Far Color", "Màu tint áp dụng cho cỏ ở xa camera."));
             materialEditor.ShaderProperty(
                 nearFarRange,
-                MakeLabel("Near/Far Range", "Distance range used to blend near and far tint."));
+                MakeLabel("Near/Far Range", "Khoảng cách dùng để blend giữa Near Color và Far Color."));
             materialEditor.ShaderProperty(
                 bottomColor,
-                MakeLabel("Bottom Tint", "Tint applied near the base of each blade."));
+                MakeLabel("Bottom Tint", "Màu tint áp dụng ở phần gốc của mỗi blade cỏ."));
             materialEditor.ShaderProperty(
                 heightBlend,
-                MakeLabel("Height Blend", "How quickly bottom tint fades toward the tip."));
+                MakeLabel("Height Blend", "Tốc độ màu ở gốc chuyển dần lên màu bình thường ở phần ngọn."));
             EditorGUILayout.Space(4);
         }
 
@@ -360,20 +371,20 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         {
             materialEditor.ShaderProperty(
                 useTerrainColor,
-                MakeLabel("Use Terrain Color", "Multiply terrain tint into the grass color."));
+                MakeLabel("Use Terrain Color", "Trộn màu terrain vào màu của cỏ để cỏ hòa nền tốt hơn."));
             if (useTerrainColor.floatValue > 0.5f)
             {
                 materialEditor.ShaderProperty(
                     terrainColor,
-                    MakeLabel("Terrain Color", "Tint sampled from terrain settings or set manually."));
+                    MakeLabel("Terrain Color", "Màu terrain lấy từ hệ terrain hoặc đặt tay để blend vào cỏ."));
             }
 
             materialEditor.ShaderProperty(
                 terrainBlendStrength,
-                MakeLabel("Blend Strength", "How strongly terrain tint or terrain color maps are mixed into the grass."));
+                MakeLabel("Blend Strength", "Mức độ màu terrain hoặc terrain color map được trộn vào cỏ."));
 
             EditorGUILayout.HelpBox(
-                "For URP, the shader can use the manual terrain tint or a global terrain color map provided by GrassTerrainColorMapController.",
+                "Trong URP, shader có thể dùng màu terrain đặt tay hoặc terrain color map toàn cục do GrassTerrainColorMapController cung cấp.",
                 MessageType.None);
 
             EditorGUILayout.Space(4);
@@ -391,38 +402,50 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         MaterialProperty interactionFlatten,
         MaterialProperty interactionRadiusMultiplier,
         MaterialProperty interactionVerticalRange,
-        MaterialProperty interactionTrail)
+        MaterialProperty interactionTrail,
+        MaterialProperty interactionRecoveryStrength,
+        MaterialProperty interactionRecoveryFrequency,
+        MaterialProperty interactionRecoveryNoiseScale)
     {
         foldout = EditorGUILayout.BeginFoldoutHeaderGroup(foldout, "Interaction");
         if (foldout)
         {
             materialEditor.ShaderProperty(
                 enableInteraction,
-                MakeLabel("Enable Interaction", "Allows the material to respond to the global grass interaction render texture."));
+                MakeLabel("Enable Interaction", "Cho phép material phản ứng với RenderTexture interaction toàn cục của hệ cỏ."));
 
             EditorGUI.BeginDisabledGroup(enableInteraction.floatValue < 0.5f);
             materialEditor.ShaderProperty(
                 interactionStrength,
-                MakeLabel("Strength", "Master multiplier for interaction intensity."));
+                MakeLabel("Strength", "Hệ số tổng quyết định độ mạnh của interaction."));
             materialEditor.ShaderProperty(
                 interactionPushAway,
-                MakeLabel("Push Away", "How far blade tips are pushed sideways by interaction."));
+                MakeLabel("Push Away", "Độ đẩy ngang của ngọn cỏ khi bị interaction tác động."));
             materialEditor.ShaderProperty(
                 interactionFlatten,
-                MakeLabel("Flatten", "How much interaction pushes the blade downward."));
+                MakeLabel("Flatten", "Mức độ interaction ép cỏ chúi xuống dưới."));
             materialEditor.ShaderProperty(
                 interactionRadiusMultiplier,
-                MakeLabel("Radius Multiplier", "Broadens the interaction gradient sampling radius."));
+                MakeLabel("Radius Multiplier", "Mở rộng hoặc siết lại vùng phản ứng khi giải mã interaction field."));
             materialEditor.ShaderProperty(
                 interactionVerticalRange,
-                MakeLabel("Vertical Range", "Limits interaction by height so distant levels are not affected."));
+                MakeLabel("Vertical Range", "Giới hạn interaction theo độ cao để tránh ảnh hưởng nhầm tầng khác."));
             materialEditor.ShaderProperty(
                 interactionTrail,
-                MakeLabel("Trail Response", "Shapes the falloff from sharp stamp response to softer lingering response."));
+                MakeLabel("Trail Response", "Điều khiển độ gắt hoặc độ mềm của dấu interaction còn lưu lại."));
+            materialEditor.ShaderProperty(
+                interactionRecoveryStrength,
+                MakeLabel("Recovery Strength", "Độ rung hồi khi cỏ trở về trạng thái bình thường sau interaction."));
+            materialEditor.ShaderProperty(
+                interactionRecoveryFrequency,
+                MakeLabel("Recovery Frequency", "Tốc độ rung hồi của cỏ khi đang trả về trạng thái ban đầu."));
+            materialEditor.ShaderProperty(
+                interactionRecoveryNoiseScale,
+                MakeLabel("Recovery Noise Scale", "Độ biến thiên pha trong world-space để vùng cỏ lớn không rung cùng nhịp."));
             EditorGUI.EndDisabledGroup();
 
             EditorGUILayout.HelpBox(
-                "Runtime interaction comes from GrassInteractionController + one or more GrassInteractionSource components on a dedicated interaction layer.",
+                "Interaction runtime lấy dữ liệu từ một GrassInteractionSystem và một hoặc nhiều GrassInteractionSource vẽ particle vào interaction RT. Trail particle sẽ tạo độ rung hồi thông qua nhóm recovery trong shader.",
                 MessageType.None);
             EditorGUILayout.Space(4);
         }
@@ -451,7 +474,7 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         if (!singleMaterialSelected)
         {
             EditorGUILayout.HelpBox(
-                "Select exactly one material if you want to bake the current values back into the shader defaults.",
+                "Hãy chọn đúng một material nếu bạn muốn ghi các giá trị hiện tại trở lại shader defaults.",
                 MessageType.None);
             return;
         }
@@ -462,8 +485,8 @@ public sealed class GrassWindShaderGUI : ShaderGUI
             return;
         }
 
-        EditorGUILayout.HelpBox(
-            "This writes the current float, color, and vector values into the shader defaults and syncs default textures through ShaderImporter. Texture scale and offset stay on the material.",
+            EditorGUILayout.HelpBox(
+            "Thao tác này ghi các giá trị float, color và vector hiện tại vào shader defaults, đồng thời đồng bộ texture mặc định qua ShaderImporter. Texture scale và offset vẫn nằm trên material.",
             MessageType.None);
     }
 
