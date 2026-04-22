@@ -3,17 +3,17 @@ Shader "Custom/Vit/Plant_URP"
     Properties
     {
         [MainTexture] _BaseMap ("Base Map", 2D) = "white" {}
-        [MainColor] _BaseColor ("Base Color", Color) = (1,1,1,1)
+        [MainColor] _BaseColor ("Base Color", Color) = (0.6528301,0.6320304,0.2549732,1)
         _Cutoff ("Alpha Cutoff", Range(0,1)) = 0.5
         [Toggle] _ReceiveShadows ("Receive Shadows", Float) = 1
         _ShadowStrength ("Shadow Strength", Range(0,1)) = 1
         _ShadowFloor ("Shadow Floor", Range(0,1)) = 0
         [Toggle] _EnableMainLight ("Enable Main Light", Float) = 1
-        _MainLightIntensity ("Main Light Intensity", Range(0,4)) = 1
+        _MainLightIntensity ("Main Light Intensity", Range(0,4)) = 2
         [Toggle] _EnableAdditionalLights ("Enable Additional Lights", Float) = 0
         _AdditionalLightIntensity ("Additional Light Intensity", Range(0,4)) = 1
         [Toggle] _EnableAmbient ("Enable Ambient", Float) = 1
-        _AmbientIntensity ("Ambient Intensity", Range(0,4)) = 0.8
+        _AmbientIntensity ("Ambient Intensity", Range(0,4)) = 0.5
         [Toggle] _TwoSidedLighting ("Two-Sided Lighting", Float) = 1
 
         [NoScaleOffset] _WindTexture ("Wind Texture", 2D) = "gray" {}
@@ -31,13 +31,13 @@ Shader "Custom/Vit/Plant_URP"
         [HideInInspector] _WaveLateralInfluence ("Lateral Wave", Range(0,1)) = 1
 
         [HideInInspector] _WindTextureScale ("Texture Scale", Vector) = (60,50,0,0)
-        [HideInInspector] _WindTextureScrollSpeed ("Texture Scroll Speed", Range(0,5)) = 0.2
+        [HideInInspector] _WindTextureScrollSpeed ("Texture Scroll Speed", Range(0,5)) = 0.15
         [HideInInspector] _WindTextureContrast ("Texture Contrast", Vector) = (0.2,0.8,0,0)
         [HideInInspector] _WindTextureInfluence ("Texture Influence", Range(0,1)) = 0.3
         [HideInInspector] _WindTextureWaveInfluence ("Texture To Wave", Range(0,1)) = 1
 
-        [HideInInspector] _NearColor ("Near Color", Color) = (0.460991,0.5169811,0.2370309,1)
-        [HideInInspector] _FarColor ("Far Color", Color) = (0.5461166,0.6226414,0.229085,1)
+        [HideInInspector] _NearColor ("Near Color", Color) = (0.6595166,0.7132074,0,1)
+        [HideInInspector] _FarColor ("Far Color", Color) = (0.8032724,1,0,1)
         [HideInInspector] _NearFarRange ("Near/Far Range", Vector) = (5,18,0,0)
         [HideInInspector] _BottomColor ("Bottom Color", Color) = (0.3660378,0.3660378,0.3660378,1)
         [HideInInspector] _HeightBlend ("Height Blend", Range(0,20)) = 4.5
@@ -49,13 +49,13 @@ Shader "Custom/Vit/Plant_URP"
         [Toggle] _EnableInteraction ("Enable Interaction", Float) = 1
         [HideInInspector] _InteractionStrength ("Interaction Strength", Range(0,2)) = 1
         [HideInInspector] _InteractionPushAway ("Interaction Push Away", Range(0,2)) = 0.7
-        [HideInInspector] _InteractionFlatten ("Interaction Flatten", Range(0,1)) = 0.5
-        [HideInInspector] _InteractionRadiusMultiplier ("Interaction Radius Multiplier", Range(0.25,4)) = 1.2
-        [HideInInspector] _InteractionVerticalRange ("Interaction Vertical Range", Range(0.1,5)) = 1.2
-        [HideInInspector] _InteractionTrail ("Interaction Trail Response", Range(0,1)) = 0.77
-        [HideInInspector] _InteractionRecoveryStrength ("Interaction Recovery Strength", Range(0,1)) = 0.22
-        [HideInInspector] _InteractionRecoveryFrequency ("Interaction Recovery Frequency", Range(0,24)) = 4.5
-        [HideInInspector] _InteractionRecoveryNoiseScale ("Interaction Recovery Noise Scale", Range(0,8)) = 0.75
+        [HideInInspector] _InteractionFlatten ("Interaction Flatten", Range(0,1)) = 0.097
+        [HideInInspector] _InteractionRadiusMultiplier ("Interaction Radius Multiplier", Range(0.25,4)) = 1.21
+        [HideInInspector] _InteractionVerticalRange ("Interaction Vertical Range", Range(0.1,5)) = 1.21
+        [HideInInspector] _InteractionTrail ("Interaction Trail Response", Range(0,1)) = 0.376
+        [HideInInspector] _InteractionRecoveryStrength ("Interaction Recovery Strength", Range(0,1)) = 0.565
+        [HideInInspector] _InteractionRecoveryFrequency ("Interaction Recovery Frequency", Range(0,24)) = 13.7
+        [HideInInspector] _InteractionRecoveryNoiseScale ("Interaction Recovery Noise Scale", Range(0,8)) = 8
     }
 
     SubShader
