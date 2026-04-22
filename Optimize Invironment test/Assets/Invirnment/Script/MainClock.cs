@@ -11,7 +11,7 @@ public sealed class MainClock : MonoBehaviour
     [SerializeField, Range(0f, HoursPerDay)]
     private float currentTimeHours = 12f;
 
-    [SerializeField, Min(0.01f)]
+    [SerializeField]
     private float dayDurationSeconds = 300f;
 
     [SerializeField]
