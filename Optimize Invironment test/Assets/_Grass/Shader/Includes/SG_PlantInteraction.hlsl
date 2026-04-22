@@ -33,9 +33,14 @@ float4 SampleInteractionData(float3 worldPos, out float2 uv)
 float GetInteractionMaskResponse(float mask)
 {
     float radiusResponse = rcp(max(_InteractionRadiusMultiplier, 0.1));
-    float shapedMask = pow(saturate(mask), radiusResponse);
-    float trailResponse = lerp(2.0, 0.65, saturate(_InteractionTrail));
-    return pow(shapedMask, trailResponse);
+    return pow(saturate(mask), radiusResponse);
+}
+
+float2 GetFallbackRecoveryAxis(float3 worldPos)
+{
+    float hash = frac(sin(dot(worldPos.xz, float2(12.9898, 78.233))) * 43758.5453);
+    float angle = hash * 6.2831853;
+    return float2(cos(angle), sin(angle));
 }
 
 float2 ApplyInteractionResponseCurve(float2 field, float mask)
@@ -54,7 +59,7 @@ float2 ApplyInteractionResponseCurve(float2 field, float mask)
     return field;
 }
 
-float2 GetInteractionField(float3 worldPos, out float interactionMask, out float recoveryWeight)
+float2 GetInteractionField(float3 worldPos, out float interactionMask, out float recoveryWeight, out float recoveryAlpha)
 {
     float2 uv;
     float4 data = SampleInteractionData(worldPos, uv);
@@ -68,9 +73,10 @@ float2 GetInteractionField(float3 worldPos, out float interactionMask, out float
     float verticalRange = max(_InteractionVerticalRange, 0.001);
     float verticalMask = 1.0 - saturate(abs(worldPos.y - projectionHeight) / verticalRange);
     float strength = verticalMask * _GrassInteractionParams.z * _InteractionStrength;
+    recoveryAlpha = rawMask;
 
     interactionMask = saturate(shapedMask * strength);
-    recoveryWeight = recovery * interactionMask;
+    recoveryWeight = saturate(recovery * recoveryAlpha * strength);
     return field * strength;
 }
 
@@ -78,33 +84,52 @@ float3 ApplyInteraction(float3 worldPos, float bladeMask)
 {
     float interactionMask;
     float recoveryWeight;
-    float2 interactionField = GetInteractionField(worldPos, interactionMask, recoveryWeight);
-    if (interactionMask <= 0.0001)
+    float recoveryAlpha;
+    float2 interactionField = GetInteractionField(worldPos, interactionMask, recoveryWeight, recoveryAlpha);
+    if (interactionMask <= 0.0001 && recoveryWeight <= 0.0001)
     {
         return worldPos;
     }
 
     float rootLock = smoothstep(0.08, 0.35, bladeMask);
     float tipInfluence = rootLock * pow(bladeMask, 1.65);
-    float flattenAmount = interactionMask * saturate(_InteractionFlatten) * tipInfluence;
+    float flattenAmount = 0.0;
 
-    worldPos.xz += interactionField * (_InteractionPushAway * tipInfluence);
+    if (interactionMask > 0.0001)
+    {
+        flattenAmount = interactionMask * saturate(_InteractionFlatten) * tipInfluence;
+        worldPos.xz += interactionField * (_InteractionPushAway * tipInfluence);
+    }
+
     if (recoveryWeight > 0.0001)
     {
-        float2 perpendicular = float2(-interactionField.y, interactionField.x);
-        float perpendicularLength = length(perpendicular);
-        if (perpendicularLength > 0.0001)
+        float2 recoveryAxis = float2(-interactionField.y, interactionField.x);
+        float axisLength = length(recoveryAxis);
+        if (axisLength > 0.0001)
         {
-            perpendicular /= perpendicularLength;
-            float recoveryWindow = recoveryWeight * saturate(1.0 - interactionMask * 1.35);
+            recoveryAxis /= axisLength;
+        }
+        else
+        {
+            recoveryAxis = GetFallbackRecoveryAxis(worldPos);
+        }
+
+        if (length(recoveryAxis) > 0.0001)
+        {
+            float releaseEnvelope = lerp(0.22, 1.0, saturate(1.0 - interactionMask));
+            float recoveryWindow = recoveryWeight * recoveryAlpha * releaseEnvelope;
             float phase = dot(worldPos.xz, float2(0.73, -1.11)) * _InteractionRecoveryNoiseScale;
             phase += _Time.y * _InteractionRecoveryFrequency;
             float wobble = sin(phase) * _InteractionRecoveryStrength * recoveryWindow * tipInfluence;
-            worldPos.xz += perpendicular * wobble;
+            worldPos.xz += recoveryAxis * wobble;
         }
     }
 
-    worldPos.y -= flattenAmount;
+    if (flattenAmount > 0.0)
+    {
+        worldPos.y -= flattenAmount;
+    }
+
     return worldPos;
 }
 

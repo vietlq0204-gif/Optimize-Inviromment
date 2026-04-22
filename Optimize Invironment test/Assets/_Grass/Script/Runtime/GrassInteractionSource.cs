@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 
 /// <summary>
-/// Paints grass interaction into the global render texture using particle systems.
+/// Drives grass interaction from contact and trail particle systems.
 /// </summary>
 [ExecuteAlways]
 public sealed class GrassInteractionSource : MonoBehaviour
@@ -10,11 +10,13 @@ public sealed class GrassInteractionSource : MonoBehaviour
     private static readonly int IntensityId = Shader.PropertyToID("_Intensity");
     private static readonly int SoftnessId = Shader.PropertyToID("_Softness");
     private static readonly int DirectionId = Shader.PropertyToID("_Direction");
+    private static readonly int RecoveryWeightId = Shader.PropertyToID("_RecoveryWeight");
+    private static readonly int UseParticleColorEncodingId = Shader.PropertyToID("_UseParticleColorEncoding");
     private static readonly int DirectionalInfluenceId = Shader.PropertyToID("_DirectionalInfluence");
 
     [Header("Source")]
     [SerializeField] private GrassInteractionSourceProfile profile;
-    [SerializeField] private int interactionLayer = 0;
+    [SerializeField] private int interactionLayer;
     [SerializeField] private float heightOffset = 0.05f;
     [SerializeField] private bool autoCreateParticleSystems = true;
 
@@ -27,13 +29,12 @@ public sealed class GrassInteractionSource : MonoBehaviour
 
     private MaterialPropertyBlock contactPropertyBlock;
     private MaterialPropertyBlock trailPropertyBlock;
-    private float contactEmitAccumulator;
-    private float trailDistanceAccumulator;
     private Vector3 lastPosition;
-    private Vector3 lastPaintPosition;
+    private Quaternion lastRotation;
+    private Vector3 lastLossyScale;
     private Vector3 stableContactPosition;
     private Vector2 stablePlanarDirection = Vector2.up;
-    private bool isStationary;
+    private bool isStationary = true;
     private bool hasLastPosition;
 
     private void Reset()
@@ -45,30 +46,15 @@ public sealed class GrassInteractionSource : MonoBehaviour
     private void OnEnable()
     {
         EnsureParticleSystems();
+        InitializeRuntimeState();
         ApplyProfile();
-
-        lastPosition = transform.position;
-        stableContactPosition = transform.position;
-        lastPaintPosition = transform.position + Vector3.up * heightOffset;
-        stablePlanarDirection = Vector2.up;
-        isStationary = true;
-        hasLastPosition = false;
-        contactEmitAccumulator = 0f;
-        trailDistanceAccumulator = 0f;
-
         PlaySystems();
     }
 
     private void OnDisable()
     {
-        StopAndClear(contactParticles);
-        StopAndClear(trailParticles);
-        lastPaintPosition = transform.position + Vector3.up * heightOffset;
-        stablePlanarDirection = Vector2.up;
-        isStationary = true;
+        StopSystems();
         hasLastPosition = false;
-        contactEmitAccumulator = 0f;
-        trailDistanceAccumulator = 0f;
     }
 
     private void OnValidate()
@@ -101,17 +87,21 @@ public sealed class GrassInteractionSource : MonoBehaviour
         PlaySystems();
 
         Vector3 currentPosition = transform.position;
+        Quaternion currentRotation = transform.rotation;
+        Vector3 currentLossyScale = transform.lossyScale;
         float deltaTime = GetDeltaTime();
-        Vector3 delta = currentPosition - lastPosition;
-        Vector2 planarDirection = GetFilteredPlanarDirection(delta, deltaTime, out float planarDistance, out float planarSpeed);
+        bool rootTransformChanged = HasRootTransformChanged(currentPosition, currentRotation, currentLossyScale);
+        Vector2 planarDirection = GetFilteredPlanarDirection(currentPosition - lastPosition, deltaTime, out float planarSpeed);
         Vector3 contactPosition = GetStableContactPosition(currentPosition, planarSpeed, deltaTime);
         Vector3 paintPosition = contactPosition + Vector3.up * heightOffset;
 
-        EmitContactParticles(paintPosition, planarDirection, planarSpeed, deltaTime);
-        EmitTrailParticles(lastPaintPosition, paintPosition, planarDirection, planarDistance, planarSpeed);
+        UpdateEmitterTransforms(paintPosition);
+        UpdateParticleWriterState(planarDirection, planarSpeed);
+        UpdateEmissionState(rootTransformChanged);
 
         lastPosition = currentPosition;
-        lastPaintPosition = paintPosition;
+        lastRotation = currentRotation;
+        lastLossyScale = currentLossyScale;
         hasLastPosition = true;
     }
 
@@ -128,111 +118,20 @@ public sealed class GrassInteractionSource : MonoBehaviour
             return;
         }
 
-        ConfigureParticleSystem(contactParticles, profile.contactMaxParticles, profile.contactSoftness, profile.contactDirectionalInfluence, false);
-        ConfigureParticleSystem(trailParticles, profile.trailMaxParticles, profile.trailSoftness, profile.trailDirectionalInfluence, true);
+        ConfigureParticleSystem(contactParticles, false);
+        ConfigureParticleSystem(trailParticles, true);
+        UpdateParticleWriterState(stablePlanarDirection, 0f);
     }
 
-    private void EmitContactParticles(Vector3 paintPosition, Vector2 planarDirection, float planarSpeed, float deltaTime)
+    private void InitializeRuntimeState()
     {
-        if (profile.contactRefreshRate <= 0f || profile.contactLifetime <= 0f || profile.contactIntensity <= 0f)
-        {
-            return;
-        }
-
-        float effectiveRefreshRate = GetStableContactRefreshRate();
-        contactEmitAccumulator += deltaTime * effectiveRefreshRate;
-        while (contactEmitAccumulator >= 1f)
-        {
-            contactEmitAccumulator -= 1f;
-            EmitParticle(
-                contactParticles,
-                paintPosition,
-                profile.contactSize,
-                profile.contactLifetime,
-                profile.contactIntensity,
-                GetEncodedDirection(planarDirection, planarSpeed, profile.minimumDirectionalSpeed),
-                0f);
-        }
-    }
-
-    private float GetStableContactRefreshRate()
-    {
-        const float minimumOverlap = 5f;
-        float profileRefresh = Mathf.Max(profile.contactRefreshRate, 0.01f);
-        float overlapDrivenRefresh = minimumOverlap / Mathf.Max(profile.contactLifetime, 0.01f);
-        return Mathf.Max(profileRefresh, overlapDrivenRefresh);
-    }
-
-    private void EmitTrailParticles(
-        Vector3 previousPosition,
-        Vector3 currentPosition,
-        Vector2 planarDirection,
-        float planarDistance,
-        float planarSpeed)
-    {
-        if (!hasLastPosition ||
-            profile.trailRateOverDistance <= 0f ||
-            profile.trailLifetime <= 0f ||
-            profile.trailIntensity <= 0f ||
-            planarSpeed < profile.minimumDirectionalSpeed ||
-            planarDistance <= 0.0001f)
-        {
-            if (!hasLastPosition)
-            {
-                trailDistanceAccumulator = 0f;
-            }
-
-            return;
-        }
-
-        float spacing = 1f / Mathf.Max(profile.trailRateOverDistance, 0.0001f);
-        float nextDistance = spacing - trailDistanceAccumulator;
-        while (nextDistance <= planarDistance)
-        {
-            float t = nextDistance / Mathf.Max(planarDistance, 0.0001f);
-            Vector3 emitPosition = Vector3.Lerp(previousPosition, currentPosition, t);
-            EmitParticle(
-                trailParticles,
-                emitPosition,
-                profile.trailSize,
-                profile.trailLifetime,
-                profile.trailIntensity,
-                GetEncodedDirection(planarDirection, planarSpeed, profile.minimumDirectionalSpeed),
-                profile.trailRecoveryWeight);
-            nextDistance += spacing;
-        }
-
-        trailDistanceAccumulator = (trailDistanceAccumulator + planarDistance) % spacing;
-    }
-
-    private void EmitParticle(
-        ParticleSystem particleSystem,
-        Vector3 worldPosition,
-        float startSize,
-        float lifetime,
-        float intensity,
-        Vector2 encodedDirection,
-        float recoveryWeight)
-    {
-        if (particleSystem == null)
-        {
-            return;
-        }
-
-        ParticleSystem.EmitParams emitParams = new()
-        {
-            position = worldPosition,
-            startLifetime = lifetime,
-            startSize = startSize,
-            startColor = new Color(
-                encodedDirection.x,
-                encodedDirection.y,
-                Mathf.Clamp01(recoveryWeight),
-                Mathf.Clamp01(intensity)),
-            applyShapeToPosition = false,
-        };
-
-        particleSystem.Emit(emitParams, 1);
+        lastPosition = transform.position;
+        lastRotation = transform.rotation;
+        lastLossyScale = transform.lossyScale;
+        stableContactPosition = transform.position;
+        stablePlanarDirection = Vector2.up;
+        isStationary = true;
+        hasLastPosition = false;
     }
 
     private void EnsureParticleSystems()
@@ -243,83 +142,101 @@ public sealed class GrassInteractionSource : MonoBehaviour
             return;
         }
 
-        contactParticles = EnsureParticleSystem(contactParticles, "Grass Interaction Contact");
-        trailParticles = EnsureParticleSystem(trailParticles, "Grass Interaction Trail");
+        contactParticles = EnsureParticleSystem(contactParticles, "Grass Interaction Contact", false);
+        trailParticles = EnsureParticleSystem(trailParticles, "Grass Interaction Trail", true);
     }
 
-    private ParticleSystem EnsureParticleSystem(ParticleSystem particleSystem, string childName)
+    private ParticleSystem EnsureParticleSystem(ParticleSystem particleSystem, string childName, bool trailSystem)
     {
-        if (particleSystem != null)
-        {
-            particleSystem.gameObject.layer = interactionLayer;
-            return particleSystem;
-        }
-
-        if (!autoCreateParticleSystems)
-        {
-            return null;
-        }
-
-        Transform child = transform.Find(childName);
-        GameObject childObject;
-        if (child != null)
-        {
-            childObject = child.gameObject;
-        }
-        else
-        {
-            childObject = new GameObject(childName);
-            childObject.transform.SetParent(transform, false);
-        }
-
-        childObject.layer = interactionLayer;
-
-        particleSystem = childObject.GetComponent<ParticleSystem>();
+        bool createdNewSystem = false;
         if (particleSystem == null)
         {
-            particleSystem = childObject.AddComponent<ParticleSystem>();
+            if (!autoCreateParticleSystems)
+            {
+                return null;
+            }
+
+            Transform child = transform.Find(childName);
+            GameObject childObject;
+            if (child != null)
+            {
+                childObject = child.gameObject;
+            }
+            else
+            {
+                childObject = new GameObject(childName);
+                childObject.transform.SetParent(transform, false);
+            }
+
+            childObject.layer = interactionLayer;
+
+            particleSystem = childObject.GetComponent<ParticleSystem>();
+            if (particleSystem == null)
+            {
+                particleSystem = childObject.AddComponent<ParticleSystem>();
+                createdNewSystem = true;
+            }
+
+            if (childObject.GetComponent<ParticleSystemRenderer>() == null)
+            {
+                childObject.AddComponent<ParticleSystemRenderer>();
+            }
         }
 
-        ParticleSystemRenderer renderer = childObject.GetComponent<ParticleSystemRenderer>();
-        if (renderer == null)
+        particleSystem.gameObject.layer = interactionLayer;
+        ApplyRendererDefaults(particleSystem);
+        if (createdNewSystem)
         {
-            renderer = childObject.AddComponent<ParticleSystemRenderer>();
+            ApplyParticleDefaults(particleSystem, trailSystem);
         }
-
-        renderer.sharedMaterial = sharedMaterial;
-        renderer.renderMode = ParticleSystemRenderMode.Billboard;
-        renderer.alignment = ParticleSystemRenderSpace.View;
-        renderer.shadowCastingMode = ShadowCastingMode.Off;
-        renderer.receiveShadows = false;
-        renderer.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
-        renderer.lightProbeUsage = LightProbeUsage.Off;
-        renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
-        renderer.allowOcclusionWhenDynamic = false;
 
         return particleSystem;
     }
 
-    private void ConfigureParticleSystem(
-        ParticleSystem particleSystem,
-        int maxParticles,
-        float softness,
-        float directionalInfluence,
-        bool trailSystem)
+    private void ApplyParticleDefaults(ParticleSystem particleSystem, bool trailSystem)
     {
         ParticleSystem.MainModule main = particleSystem.main;
         main.playOnAwake = false;
-        main.loop = false;
+        main.loop = true;
+        main.duration = 1f;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
         main.startSpeed = 0f;
         main.startRotation = 0f;
-        main.maxParticles = Mathf.Max(maxParticles, 1);
-        main.scalingMode = ParticleSystemScalingMode.Hierarchy;
         main.gravityModifier = 0f;
+        main.scalingMode = ParticleSystemScalingMode.Hierarchy;
+        main.maxParticles = trailSystem ? 192 : 64;
+        main.startLifetime = trailSystem ? 0.95f : 0.2f;
+        main.startSize = trailSystem ? 1.05f : 1.2f;
+        main.startColor = Color.white;
 
         ParticleSystem.EmissionModule emission = particleSystem.emission;
-        emission.enabled = false;
-        emission.rateOverTime = 0f;
-        emission.rateOverDistance = 0f;
+        emission.enabled = true;
+        emission.rateOverTime = trailSystem ? 0f : 18f;
+        emission.rateOverDistance = trailSystem ? 4.5f : 0f;
+
+        ParticleSystem.ColorOverLifetimeModule colorOverLifetime = particleSystem.colorOverLifetime;
+        colorOverLifetime.enabled = true;
+        colorOverLifetime.color = new ParticleSystem.MinMaxGradient(CreateAlphaFadeGradient(trailSystem));
+
+        ParticleSystem.SizeOverLifetimeModule sizeOverLifetime = particleSystem.sizeOverLifetime;
+        sizeOverLifetime.enabled = true;
+        sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(1f, CreateSizeCurve(trailSystem));
+    }
+
+    private void ConfigureParticleSystem(ParticleSystem particleSystem, bool trailSystem)
+    {
+        ParticleSystem.MainModule main = particleSystem.main;
+        main.playOnAwake = false;
+        main.loop = true;
+        main.duration = Mathf.Max(main.duration, 1f);
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.startSpeed = 0f;
+        main.startRotation = 0f;
+        main.gravityModifier = 0f;
+        main.scalingMode = ParticleSystemScalingMode.Hierarchy;
+
+        ParticleSystem.EmissionModule emission = particleSystem.emission;
+        emission.enabled = true;
 
         ParticleSystem.ShapeModule shape = particleSystem.shape;
         shape.enabled = false;
@@ -336,47 +253,125 @@ public sealed class GrassInteractionSource : MonoBehaviour
         ParticleSystem.TrailModule trails = particleSystem.trails;
         trails.enabled = false;
 
-        ParticleSystem.ColorOverLifetimeModule colorOverLifetime = particleSystem.colorOverLifetime;
-        colorOverLifetime.enabled = true;
-        colorOverLifetime.color = new ParticleSystem.MinMaxGradient(CreateAlphaFadeGradient(trailSystem));
+        if (particleSystem.colorOverLifetime.enabled == false)
+        {
+            ParticleSystem.ColorOverLifetimeModule colorOverLifetime = particleSystem.colorOverLifetime;
+            colorOverLifetime.enabled = true;
+            colorOverLifetime.color = new ParticleSystem.MinMaxGradient(CreateAlphaFadeGradient(trailSystem));
+        }
 
-        ParticleSystem.SizeOverLifetimeModule sizeOverLifetime = particleSystem.sizeOverLifetime;
-        sizeOverLifetime.enabled = true;
-        sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(1f, CreateSizeCurve(trailSystem));
+        if (particleSystem.sizeOverLifetime.enabled == false)
+        {
+            ParticleSystem.SizeOverLifetimeModule sizeOverLifetime = particleSystem.sizeOverLifetime;
+            sizeOverLifetime.enabled = true;
+            sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(1f, CreateSizeCurve(trailSystem));
+        }
+
+        ApplyRendererDefaults(particleSystem);
+    }
+
+    private void ApplyRendererDefaults(ParticleSystem particleSystem)
+    {
+        ParticleSystemRenderer renderer = particleSystem.GetComponent<ParticleSystemRenderer>();
+        if (renderer == null)
+        {
+            return;
+        }
+
+        renderer.sharedMaterial = sharedMaterial;
+        renderer.renderMode = ParticleSystemRenderMode.Billboard;
+        renderer.alignment = ParticleSystemRenderSpace.View;
+        renderer.shadowCastingMode = ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
+        renderer.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
+        renderer.lightProbeUsage = LightProbeUsage.Off;
+        renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
+        renderer.allowOcclusionWhenDynamic = false;
+    }
+
+    private void UpdateEmitterTransforms(Vector3 paintPosition)
+    {
+        if (contactParticles != null)
+        {
+            contactParticles.transform.SetPositionAndRotation(paintPosition, Quaternion.identity);
+        }
+
+        if (trailParticles != null)
+        {
+            trailParticles.transform.SetPositionAndRotation(paintPosition, Quaternion.identity);
+        }
+    }
+
+    private void UpdateParticleWriterState(Vector2 planarDirection, float planarSpeed)
+    {
+        Vector2 direction = planarSpeed >= Mathf.Max(profile.minimumDirectionalSpeed, 0.0001f) &&
+                            planarDirection.sqrMagnitude > 0.0001f
+            ? planarDirection.normalized
+            : stablePlanarDirection;
+
+        if (direction.sqrMagnitude <= 0.0001f)
+        {
+            direction = Vector2.up;
+        }
+
+        stablePlanarDirection = direction;
+
+        UpdateRendererProperties(
+            contactParticles,
+            ref contactPropertyBlock,
+            profile.contactSoftness,
+            profile.contactDirectionalInfluence,
+            profile.contactRecoveryWeight,
+            direction);
+        UpdateRendererProperties(
+            trailParticles,
+            ref trailPropertyBlock,
+            profile.trailSoftness,
+            profile.trailDirectionalInfluence,
+            profile.trailRecoveryWeight,
+            direction);
+    }
+
+    private static void UpdateRendererProperties(
+        ParticleSystem particleSystem,
+        ref MaterialPropertyBlock propertyBlock,
+        float softness,
+        float directionalInfluence,
+        float recoveryWeight,
+        Vector2 direction)
+    {
+        if (particleSystem == null)
+        {
+            return;
+        }
 
         ParticleSystemRenderer renderer = particleSystem.GetComponent<ParticleSystemRenderer>();
-        if (renderer != null)
+        if (renderer == null)
         {
-            renderer.sharedMaterial = sharedMaterial;
-            renderer.renderMode = ParticleSystemRenderMode.Billboard;
-            renderer.alignment = ParticleSystemRenderSpace.View;
-            renderer.shadowCastingMode = ShadowCastingMode.Off;
-            renderer.receiveShadows = false;
-            renderer.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
-            renderer.lightProbeUsage = LightProbeUsage.Off;
-            renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
-            renderer.allowOcclusionWhenDynamic = false;
-
-            MaterialPropertyBlock propertyBlock = trailSystem ? trailPropertyBlock ??= new MaterialPropertyBlock() : contactPropertyBlock ??= new MaterialPropertyBlock();
-            propertyBlock.Clear();
-            propertyBlock.SetFloat(IntensityId, 1f);
-            propertyBlock.SetFloat(SoftnessId, Mathf.Clamp01(softness));
-            propertyBlock.SetFloat(DirectionalInfluenceId, Mathf.Clamp01(directionalInfluence));
-            propertyBlock.SetVector(DirectionId, Vector4.zero);
-            renderer.SetPropertyBlock(propertyBlock);
+            return;
         }
 
-        particleSystem.gameObject.layer = interactionLayer;
-        if (!particleSystem.isPlaying)
-        {
-            particleSystem.Play(true);
-        }
+        propertyBlock ??= new MaterialPropertyBlock();
+        propertyBlock.Clear();
+        propertyBlock.SetFloat(IntensityId, 1f);
+        propertyBlock.SetFloat(SoftnessId, Mathf.Clamp01(softness));
+        propertyBlock.SetFloat(DirectionalInfluenceId, Mathf.Clamp01(directionalInfluence));
+        propertyBlock.SetFloat(RecoveryWeightId, Mathf.Clamp01(recoveryWeight));
+        propertyBlock.SetFloat(UseParticleColorEncodingId, 0f);
+        propertyBlock.SetVector(DirectionId, new Vector4(direction.x, direction.y, 0f, 0f));
+        renderer.SetPropertyBlock(propertyBlock);
     }
 
     private void PlaySystems()
     {
         PlayIfNeeded(contactParticles);
         PlayIfNeeded(trailParticles);
+    }
+
+    private void StopSystems()
+    {
+        StopAndClear(contactParticles);
+        StopAndClear(trailParticles);
     }
 
     private static void PlayIfNeeded(ParticleSystem particleSystem)
@@ -411,13 +406,17 @@ public sealed class GrassInteractionSource : MonoBehaviour
                 ? new[]
                 {
                     new GradientAlphaKey(1f, 0f),
-                    new GradientAlphaKey(0.92f, 0.3f),
+                    new GradientAlphaKey(0.92f, 0.4f),
+                    new GradientAlphaKey(0.18f, 0.85f),
+                    new GradientAlphaKey(0f, 0.96f),
                     new GradientAlphaKey(0f, 1f),
                 }
                 : new[]
                 {
                     new GradientAlphaKey(1f, 0f),
-                    new GradientAlphaKey(1f, 0.75f),
+                    new GradientAlphaKey(1f, 0.55f),
+                    new GradientAlphaKey(0.22f, 0.84f),
+                    new GradientAlphaKey(0f, 0.96f),
                     new GradientAlphaKey(0f, 1f),
                 });
         return gradient;
@@ -429,59 +428,38 @@ public sealed class GrassInteractionSource : MonoBehaviour
             ? new AnimationCurve(
                 new Keyframe(0f, 0.92f),
                 new Keyframe(0.5f, 1.04f),
-                new Keyframe(1f, 1.15f))
+                new Keyframe(1f, 1.12f))
             : new AnimationCurve(
                 new Keyframe(0f, 1f),
                 new Keyframe(1f, 1.02f));
     }
 
-    private static Vector2 GetEncodedDirection(Vector2 planarDirection, float planarSpeed, float minimumDirectionalSpeed)
-    {
-        if (planarSpeed < minimumDirectionalSpeed || planarDirection.sqrMagnitude <= 0.0001f)
-        {
-            return new Vector2(0.5f, 0.5f);
-        }
-
-        Vector2 normalizedDirection = planarDirection.normalized;
-        return normalizedDirection * 0.5f + Vector2.one * 0.5f;
-    }
-
-    private Vector2 GetFilteredPlanarDirection(Vector3 delta, float deltaTime, out float planarDistance, out float planarSpeed)
+    private Vector2 GetFilteredPlanarDirection(Vector3 delta, float deltaTime, out float planarSpeed)
     {
         Vector2 planarDelta = new(delta.x, delta.z);
         float rawDistance = planarDelta.magnitude;
         float rawSpeed = rawDistance / Mathf.Max(deltaTime, 0.0001f);
-        float distanceDeadZone = Mathf.Max(profile.contactSize * 0.015f, 0.0025f);
+        float deadZone = 0.0025f;
         float speedEnterStationary = Mathf.Max(profile.minimumDirectionalSpeed * 2.75f, 0.12f);
         float speedExitStationary = speedEnterStationary * 1.35f;
 
-        if (!hasLastPosition || rawDistance <= distanceDeadZone)
+        if (!hasLastPosition || rawDistance <= deadZone)
         {
             isStationary = true;
-            planarDistance = 0f;
             planarSpeed = 0f;
             return Vector2.zero;
         }
 
+        isStationary = isStationary ? rawSpeed < speedExitStationary : rawSpeed < speedEnterStationary;
         if (isStationary)
         {
-            isStationary = rawSpeed < speedExitStationary;
-        }
-        else
-        {
-            isStationary = rawSpeed < speedEnterStationary;
-        }
-
-        if (isStationary)
-        {
-            planarDistance = 0f;
             planarSpeed = 0f;
             return Vector2.zero;
         }
 
         Vector2 rawDirection = planarDelta / rawDistance;
-        float directionSmoothing = 1f - Mathf.Exp(-18f * deltaTime);
-        stablePlanarDirection = Vector2.Lerp(stablePlanarDirection, rawDirection, directionSmoothing);
+        float smoothing = 1f - Mathf.Exp(-18f * deltaTime);
+        stablePlanarDirection = Vector2.Lerp(stablePlanarDirection, rawDirection, smoothing);
         if (stablePlanarDirection.sqrMagnitude <= 0.0001f)
         {
             stablePlanarDirection = rawDirection;
@@ -491,7 +469,6 @@ public sealed class GrassInteractionSource : MonoBehaviour
             stablePlanarDirection.Normalize();
         }
 
-        planarDistance = rawDistance;
         planarSpeed = rawSpeed;
         return stablePlanarDirection;
     }
@@ -508,7 +485,7 @@ public sealed class GrassInteractionSource : MonoBehaviour
 
         if (planarSpeed < minimumSpeed)
         {
-            float stationaryThreshold = Mathf.Max(profile.contactSize * 0.08f, 0.015f);
+            float stationaryThreshold = 0.02f;
             Vector2 planarOffset = new(targetPosition.x - stableContactPosition.x, targetPosition.z - stableContactPosition.z);
             if (planarOffset.magnitude < stationaryThreshold)
             {
@@ -526,6 +503,40 @@ public sealed class GrassInteractionSource : MonoBehaviour
     private static float GetDeltaTime()
     {
         return Application.isPlaying ? Mathf.Max(Time.deltaTime, 0.0001f) : (1f / 60f);
+    }
+
+    private void UpdateEmissionState(bool rootTransformChanged)
+    {
+        SetEmissionEnabled(contactParticles, rootTransformChanged);
+        SetEmissionEnabled(trailParticles, rootTransformChanged);
+    }
+
+    private static void SetEmissionEnabled(ParticleSystem particleSystem, bool enabled)
+    {
+        if (particleSystem == null)
+        {
+            return;
+        }
+
+        ParticleSystem.EmissionModule emission = particleSystem.emission;
+        emission.enabled = enabled;
+    }
+
+    private bool HasRootTransformChanged(Vector3 currentPosition, Quaternion currentRotation, Vector3 currentLossyScale)
+    {
+        if (!hasLastPosition)
+        {
+            return false;
+        }
+
+        const float positionThreshold = 0.0005f;
+        const float scaleThreshold = 0.0005f;
+        const float rotationThreshold = 0.05f;
+
+        bool positionChanged = Vector3.SqrMagnitude(currentPosition - lastPosition) > positionThreshold * positionThreshold;
+        bool rotationChanged = Quaternion.Angle(currentRotation, lastRotation) > rotationThreshold;
+        bool scaleChanged = Vector3.SqrMagnitude(currentLossyScale - lastLossyScale) > scaleThreshold * scaleThreshold;
+        return positionChanged || rotationChanged || scaleChanged;
     }
 
     private static void EnsureSharedMaterial()

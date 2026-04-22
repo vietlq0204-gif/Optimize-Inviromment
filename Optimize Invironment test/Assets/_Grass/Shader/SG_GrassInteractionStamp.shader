@@ -5,6 +5,8 @@ Shader "Hidden/Vit/GrassInteractionStamp"
         _Intensity ("Intensity", Range(0, 2)) = 1
         _Softness ("Softness", Range(0.01, 1)) = 0.6
         _Direction ("Direction XY", Vector) = (0, 0, 0, 0)
+        _RecoveryWeight ("Recovery Weight", Range(0, 1)) = 1
+        _UseParticleColorEncoding ("Use Particle Color Encoding", Range(0, 1)) = 1
         _DirectionalInfluence ("Directional Influence", Range(0, 1)) = 0.85
     }
 
@@ -34,6 +36,8 @@ Shader "Hidden/Vit/GrassInteractionStamp"
                 float _Intensity;
                 float _Softness;
                 float4 _Direction;
+                float _RecoveryWeight;
+                float _UseParticleColorEncoding;
                 float _DirectionalInfluence;
             CBUFFER_END
 
@@ -67,14 +71,14 @@ Shader "Hidden/Vit/GrassInteractionStamp"
                 float innerRadius = 1.0 - saturate(_Softness);
                 float mask = 1.0 - smoothstep(innerRadius, 1.0, radialDistance);
                 float2 radialDirection = radialDistance > 0.0001 ? centeredUv / radialDistance : float2(0.0, 0.0);
-                float2 movementDirection = input.color.rg * 2.0 - 1.0;
-                float movementLength = length(movementDirection);
-                if (movementLength <= 0.0001)
+                float useParticleColorEncoding = step(0.5, _UseParticleColorEncoding);
+                float2 movementDirection = _Direction.xy;
+                if (useParticleColorEncoding > 0.5)
                 {
-                    movementDirection = _Direction.xy;
-                    movementLength = length(movementDirection);
+                    movementDirection = input.color.rg * 2.0 - 1.0;
                 }
 
+                float movementLength = length(movementDirection);
                 if (movementLength > 0.0001)
                 {
                     movementDirection /= movementLength;
@@ -97,7 +101,11 @@ Shader "Hidden/Vit/GrassInteractionStamp"
                 }
 
                 float2 encodedVector = fieldDirection * 0.5 + 0.5;
-                float recoveryWeight = saturate(input.color.b);
+                float recoveryWeight = useParticleColorEncoding > 0.5 ? saturate(input.color.b) : saturate(_RecoveryWeight);
+                if (recoveryWeight <= 0.0001)
+                {
+                    recoveryWeight = saturate(_RecoveryWeight);
+                }
                 mask *= saturate(input.color.a * _Intensity);
                 return half4(encodedVector, recoveryWeight, mask);
             }
