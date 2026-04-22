@@ -12,6 +12,7 @@ public sealed class GrassWindShaderGUI : ShaderGUI
     private static bool s_ShowWindTexture = true;
     private static bool s_ShowColor;
     private static bool s_ShowTerrain;
+    private static bool s_ShowInteraction = true;
 
     public override void OnGUI(MaterialEditor materialEditor, MaterialProperty[] properties)
     {
@@ -56,6 +57,14 @@ public sealed class GrassWindShaderGUI : ShaderGUI
 
         MaterialProperty useTerrainColor = Find("_UseTerrainColor", properties);
         MaterialProperty terrainColor = Find("_TerrainColor", properties);
+        MaterialProperty terrainBlendStrength = Find("_TerrainBlendStrength", properties);
+        MaterialProperty enableInteraction = Find("_EnableInteraction", properties);
+        MaterialProperty interactionStrength = Find("_InteractionStrength", properties);
+        MaterialProperty interactionPushAway = Find("_InteractionPushAway", properties);
+        MaterialProperty interactionFlatten = Find("_InteractionFlatten", properties);
+        MaterialProperty interactionRadiusMultiplier = Find("_InteractionRadiusMultiplier", properties);
+        MaterialProperty interactionVerticalRange = Find("_InteractionVerticalRange", properties);
+        MaterialProperty interactionTrail = Find("_InteractionTrail", properties);
 
         DrawCommon(materialEditor, ref s_ShowCommon, baseMap, baseColor, cutoff, windTexture, windSpeed, windDirection);
         DrawLighting(
@@ -91,7 +100,17 @@ public sealed class GrassWindShaderGUI : ShaderGUI
             windTextureInfluence,
             windTextureWaveInfluence);
         DrawColor(materialEditor, ref s_ShowColor, nearColor, farColor, nearFarRange, bottomColor, heightBlend);
-        DrawTerrain(materialEditor, ref s_ShowTerrain, useTerrainColor, terrainColor);
+        DrawTerrain(materialEditor, ref s_ShowTerrain, useTerrainColor, terrainColor, terrainBlendStrength);
+        DrawInteraction(
+            materialEditor,
+            ref s_ShowInteraction,
+            enableInteraction,
+            interactionStrength,
+            interactionPushAway,
+            interactionFlatten,
+            interactionRadiusMultiplier,
+            interactionVerticalRange,
+            interactionTrail);
         DrawBakeTools(materialEditor);
     }
 
@@ -333,7 +352,8 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         MaterialEditor materialEditor,
         ref bool foldout,
         MaterialProperty useTerrainColor,
-        MaterialProperty terrainColor)
+        MaterialProperty terrainColor,
+        MaterialProperty terrainBlendStrength)
     {
         foldout = EditorGUILayout.BeginFoldoutHeaderGroup(foldout, "Terrain");
         if (foldout)
@@ -348,6 +368,62 @@ public sealed class GrassWindShaderGUI : ShaderGUI
                     MakeLabel("Terrain Color", "Tint sampled from terrain settings or set manually."));
             }
 
+            materialEditor.ShaderProperty(
+                terrainBlendStrength,
+                MakeLabel("Blend Strength", "How strongly terrain tint or terrain color maps are mixed into the grass."));
+
+            EditorGUILayout.HelpBox(
+                "For URP, the shader can use the manual terrain tint or a global terrain color map provided by GrassTerrainColorMapController.",
+                MessageType.None);
+
+            EditorGUILayout.Space(4);
+        }
+
+        EditorGUILayout.EndFoldoutHeaderGroup();
+    }
+
+    private static void DrawInteraction(
+        MaterialEditor materialEditor,
+        ref bool foldout,
+        MaterialProperty enableInteraction,
+        MaterialProperty interactionStrength,
+        MaterialProperty interactionPushAway,
+        MaterialProperty interactionFlatten,
+        MaterialProperty interactionRadiusMultiplier,
+        MaterialProperty interactionVerticalRange,
+        MaterialProperty interactionTrail)
+    {
+        foldout = EditorGUILayout.BeginFoldoutHeaderGroup(foldout, "Interaction");
+        if (foldout)
+        {
+            materialEditor.ShaderProperty(
+                enableInteraction,
+                MakeLabel("Enable Interaction", "Allows the material to respond to the global grass interaction render texture."));
+
+            EditorGUI.BeginDisabledGroup(enableInteraction.floatValue < 0.5f);
+            materialEditor.ShaderProperty(
+                interactionStrength,
+                MakeLabel("Strength", "Master multiplier for interaction intensity."));
+            materialEditor.ShaderProperty(
+                interactionPushAway,
+                MakeLabel("Push Away", "How far blade tips are pushed sideways by interaction."));
+            materialEditor.ShaderProperty(
+                interactionFlatten,
+                MakeLabel("Flatten", "How much interaction pushes the blade downward."));
+            materialEditor.ShaderProperty(
+                interactionRadiusMultiplier,
+                MakeLabel("Radius Multiplier", "Broadens the interaction gradient sampling radius."));
+            materialEditor.ShaderProperty(
+                interactionVerticalRange,
+                MakeLabel("Vertical Range", "Limits interaction by height so distant levels are not affected."));
+            materialEditor.ShaderProperty(
+                interactionTrail,
+                MakeLabel("Trail Response", "Shapes the falloff from sharp stamp response to softer lingering response."));
+            EditorGUI.EndDisabledGroup();
+
+            EditorGUILayout.HelpBox(
+                "Runtime interaction comes from GrassInteractionController + one or more GrassInteractionSource components on a dedicated interaction layer.",
+                MessageType.None);
             EditorGUILayout.Space(4);
         }
 

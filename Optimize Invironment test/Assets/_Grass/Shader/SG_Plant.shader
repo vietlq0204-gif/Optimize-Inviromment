@@ -43,6 +43,15 @@ Shader "Custom/Vit/Plant_URP"
 
         [HideInInspector] _UseTerrainColor ("Use Terrain Color", Float) = 0
         [HideInInspector] _TerrainColor ("Terrain Color", Color) = (0.9887863,1,0,1)
+        [HideInInspector] _TerrainBlendStrength ("Terrain Blend Strength", Range(0,1)) = 0.35
+
+        [Toggle] _EnableInteraction ("Enable Interaction", Float) = 1
+        [HideInInspector] _InteractionStrength ("Interaction Strength", Range(0,2)) = 1
+        [HideInInspector] _InteractionPushAway ("Interaction Push Away", Range(0,2)) = 0.7
+        [HideInInspector] _InteractionFlatten ("Interaction Flatten", Range(0,1)) = 0.5
+        [HideInInspector] _InteractionRadiusMultiplier ("Interaction Radius Multiplier", Range(0.25,4)) = 1.2
+        [HideInInspector] _InteractionVerticalRange ("Interaction Vertical Range", Range(0.1,5)) = 1.2
+        [HideInInspector] _InteractionTrail ("Interaction Trail Response", Range(0,1)) = 0.77
     }
 
     SubShader
@@ -57,192 +66,16 @@ Shader "Custom/Vit/Plant_URP"
         HLSLINCLUDE
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+        #include "Assets/_Grass/Shader/Includes/SG_PlantCommon.hlsl"
+        #include "Assets/_Grass/Shader/Includes/SG_PlantWind.hlsl"
+        #include "Assets/_Grass/Shader/Includes/SG_PlantInteraction.hlsl"
+        #include "Assets/_Grass/Shader/Includes/SG_PlantTerrainBlend.hlsl"
+        #include "Assets/_Grass/Shader/Includes/SG_PlantLighting.hlsl"
 
-        TEXTURE2D(_BaseMap);
-        SAMPLER(sampler_BaseMap);
-        TEXTURE2D(_WindTexture);
-        SAMPLER(sampler_WindTexture);
-
-        CBUFFER_START(UnityPerMaterial)
-            float4 _BaseMap_ST;
-            float4 _BaseColor;
-            float _Cutoff;
-            float _ReceiveShadows;
-            float _ShadowStrength;
-            float _ShadowFloor;
-            float _EnableMainLight;
-            float _MainLightIntensity;
-            float _EnableAdditionalLights;
-            float _AdditionalLightIntensity;
-            float _EnableAmbient;
-            float _AmbientIntensity;
-            float _TwoSidedLighting;
-            float _WindSpeed;
-            float4 _WindDirection;
-            float _EnableWaveShape;
-            float _WaveFrequency;
-            float _WaveSpacingVariation;
-            float _WaveSpeed;
-            float _WaveStrength;
-            float _WaveBodyInfluence;
-            float _WaveTipInfluence;
-            float _WaveLateralInfluence;
-            float4 _WindTextureScale;
-            float _WindTextureScrollSpeed;
-            float4 _WindTextureContrast;
-            float _WindTextureInfluence;
-            float _WindTextureWaveInfluence;
-            float4 _NearColor;
-            float4 _FarColor;
-            float4 _NearFarRange;
-            float4 _BottomColor;
-            float _HeightBlend;
-            float _UseTerrainColor;
-            float4 _TerrainColor;
-        CBUFFER_END
-
-        float GetBladeMaskFromUV(float uvY)
+        float3 ApplyPlantMotion(float3 worldPos, float bladeMask)
         {
-            return saturate(uvY);
-        }
-
-        float GetToggle01(float value)
-        {
-            return step(0.5, value);
-        }
-
-        float GetWindLean01()
-        {
-            return saturate(_WindSpeed * 0.1);
-        }
-
-        float SampleWindTexture01(float2 uv)
-        {
-            return SAMPLE_TEXTURE2D_LOD(_WindTexture, sampler_WindTexture, uv, 0).r;
-        }
-
-        float GetWindTextureMask(float along, float across)
-        {
-            float2 scale = max(_WindTextureScale.xy, float2(0.001, 0.001));
-            float2 uv = float2(along / scale.x, across / scale.y);
-            // Subtract time so the visible texture pattern travels with the wind direction
-            // instead of appearing to move against it.
-            uv.x -= _Time.y * _WindTextureScrollSpeed;
-
-            float raw = SampleWindTexture01(uv);
-            float minValue = _WindTextureContrast.x;
-            float maxValue = max(_WindTextureContrast.y, minValue + 0.0001);
-            float mask = saturate((raw - minValue) / (maxValue - minValue));
-
-            return lerp(1.0, mask, saturate(_WindTextureInfluence));
-        }
-
-        float3 GetDistanceTint(float3 worldPos)
-        {
-            float dist = distance(_WorldSpaceCameraPos, worldPos);
-            float nearRange = _NearFarRange.x;
-            float farRange = max(_NearFarRange.y, nearRange + 0.0001);
-            float t = saturate((dist - nearRange) / (farRange - nearRange));
-            return lerp(_NearColor.rgb, _FarColor.rgb, t);
-        }
-
-        float3 GetHeightTint(float bladeMask)
-        {
-            float heightBlend = max(_HeightBlend, 0.0001);
-            float t = saturate(bladeMask * heightBlend);
-            return lerp(_BottomColor.rgb, float3(1.0, 1.0, 1.0), t);
-        }
-
-        float ComputeWaveSignal(float along, float across, float textureMask)
-        {
-            if (GetToggle01(_EnableWaveShape) < 0.5)
-            {
-                return 0.0;
-            }
-
-            float travel = _Time.y * _WaveSpeed;
-            float spacingVariation = saturate(_WaveSpacingVariation);
-            float spacingWarp = 0.0;
-            if (spacingVariation > 0.0001)
-            {
-                float warpCoordA = along * (_WaveFrequency * 0.19) + across * 0.045 + 0.73;
-                float warpCoordB = along * (_WaveFrequency * 0.09) - across * 0.082 - 1.41;
-                float warpNoise = sin(warpCoordA) * 0.62 + sin(warpCoordB) * 0.38;
-                spacingWarp = warpNoise * (spacingVariation * (1.2 / max(_WaveFrequency, 0.1)));
-            }
-
-            float irregularAlong = along + spacingWarp;
-            float phaseA = irregularAlong * _WaveFrequency - travel;
-            float phaseB = irregularAlong * (_WaveFrequency * 0.56) - travel * 1.28 + across * 0.12 + 1.17;
-            float signal = sin(phaseA) * 0.72 + sin(phaseB) * 0.28;
-            float textureWave = lerp(1.0, textureMask, saturate(_WindTextureWaveInfluence));
-
-            return signal * _WaveStrength * textureWave;
-        }
-
-        float3 ApplyWind(float3 worldPos, float bladeMask)
-        {
-            float2 dir = normalize(_WindDirection.xy + float2(0.0001, 0.0001));
-            float2 perp = float2(-dir.y, dir.x);
-            float along = dot(worldPos.xz, dir);
-            float across = dot(worldPos.xz, perp);
-
-            float rootLock = smoothstep(0.04, 0.16, bladeMask);
-            float leanProfile = rootLock * pow(bladeMask, 1.45);
-            float leanAmount = GetWindLean01();
-            float textureMask = GetWindTextureMask(along, across);
-
-            float baseLean = leanAmount * textureMask * leanProfile * 0.38;
-            float waveSignal = ComputeWaveSignal(along, across, textureMask);
-
-            float bodyWaveProfile = rootLock * pow(bladeMask, 1.35);
-            float tipWaveProfile = rootLock * pow(bladeMask, 3.4);
-            float bodyWave = waveSignal * _WaveBodyInfluence * bodyWaveProfile * 0.18;
-            float tipWave = waveSignal * _WaveTipInfluence * tipWaveProfile * 0.32;
-            float totalWave = bodyWave + tipWave;
-
-            float2 offsetXZ = dir * (baseLean + totalWave);
-            offsetXZ += perp * (totalWave * _WaveLateralInfluence * (0.35 + bladeMask * 0.2));
-
-            float sag = baseLean * baseLean * lerp(0.18, 0.85, bladeMask);
-            sag += abs(totalWave) * lerp(0.0, 0.08, bladeMask);
-
-            // Apply the deformation in world space so randomly rotated terrain detail
-            // instances still lean in the same global wind direction.
-            return worldPos + float3(offsetXZ.x, -sag, offsetXZ.y);
-        }
-
-        float GetDiffuseTerm(float3 normalWS, float3 lightDirectionWS)
-        {
-            float ndotl = dot(normalWS, lightDirectionWS);
-
-            if (GetToggle01(_TwoSidedLighting) > 0.5)
-            {
-                ndotl = abs(ndotl);
-            }
-
-            return saturate(ndotl);
-        }
-
-        float GetRealtimeShadowTerm(float shadowAttenuation)
-        {
-            float atten = saturate(shadowAttenuation);
-            float floorTerm = saturate(_ShadowFloor);
-            float shadowTerm = max(atten, floorTerm);
-            return lerp(1.0, shadowTerm, saturate(_ShadowStrength));
-        }
-
-        float3 EvaluateDiffuseLight(Light light, float3 normalWS, float intensity)
-        {
-            float shadowTerm = 1.0;
-            if (GetToggle01(_ReceiveShadows) > 0.5)
-            {
-                shadowTerm = GetRealtimeShadowTerm(light.shadowAttenuation);
-            }
-
-            float diffuse = GetDiffuseTerm(normalWS, light.direction);
-            float attenuation = light.distanceAttenuation * shadowTerm * intensity;
-            return light.color * (diffuse * attenuation);
+            float3 animatedWorldPos = ApplyWind(worldPos, bladeMask);
+            return ApplyInteraction(animatedWorldPos, bladeMask);
         }
         ENDHLSL
 
@@ -266,8 +99,6 @@ Shader "Custom/Vit/Plant_URP"
             #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
             #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
-
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
             struct Attributes
             {
@@ -296,7 +127,7 @@ Shader "Custom/Vit/Plant_URP"
 
                 float bladeMask = GetBladeMaskFromUV(input.uv.y);
                 float3 baseWorldPos = TransformObjectToWorld(input.positionOS.xyz);
-                float3 worldPos = ApplyWind(baseWorldPos, bladeMask);
+                float3 worldPos = ApplyPlantMotion(baseWorldPos, bladeMask);
                 float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
                 float3 normalWSNormalized = normalize(normalWS);
 
@@ -307,7 +138,7 @@ Shader "Custom/Vit/Plant_URP"
                 output.normalWS = normalWS;
                 output.vertexLighting = float3(0.0, 0.0, 0.0);
 
-#if defined(_ADDITIONAL_LIGHTS_VERTEX)
+            #if defined(_ADDITIONAL_LIGHTS_VERTEX)
                 if (GetToggle01(_EnableAdditionalLights) > 0.5)
                 {
                     uint lightsCount = GetAdditionalLightsCount();
@@ -317,7 +148,8 @@ Shader "Custom/Vit/Plant_URP"
                         output.vertexLighting += EvaluateDiffuseLight(light, normalWSNormalized, 1.0);
                     }
                 }
-#endif
+            #endif
+
                 return output;
             }
 
@@ -332,11 +164,7 @@ Shader "Custom/Vit/Plant_URP"
                 float3 color = tex.rgb * _BaseColor.rgb;
                 color *= GetDistanceTint(input.worldPos);
                 color *= GetHeightTint(input.bladeMask);
-
-                if (_UseTerrainColor > 0.5)
-                {
-                    color = lerp(color, color * _TerrainColor.rgb, 0.35);
-                }
+                color = ApplyTerrainBlend(color, input.worldPos);
 
                 float3 normalWS = normalize(input.normalWS);
                 float3 lighting = 0.0;
@@ -362,7 +190,7 @@ Shader "Custom/Vit/Plant_URP"
                     lighting += EvaluateDiffuseLight(mainLight, normalWS, _MainLightIntensity);
                 }
 
-#if defined(_ADDITIONAL_LIGHTS)
+            #if defined(_ADDITIONAL_LIGHTS)
                 if (GetToggle01(_EnableAdditionalLights) > 0.5)
                 {
                     uint lightsCount = GetAdditionalLightsCount();
@@ -370,22 +198,22 @@ Shader "Custom/Vit/Plant_URP"
 
                     LIGHT_LOOP_BEGIN(lightsCount)
                         Light light;
-#if defined(_ADDITIONAL_LIGHT_SHADOWS)
+                    #if defined(_ADDITIONAL_LIGHT_SHADOWS)
                         light = GetAdditionalLight(lightIndex, input.worldPos, shadowMask);
-#else
+                    #else
                         light = GetAdditionalLight(lightIndex, input.worldPos);
-#endif
+                    #endif
                         lighting += EvaluateDiffuseLight(light, normalWS, _AdditionalLightIntensity);
                     LIGHT_LOOP_END
                 }
-#endif
+            #endif
 
-#if defined(_ADDITIONAL_LIGHTS_VERTEX)
+            #if defined(_ADDITIONAL_LIGHTS_VERTEX)
                 if (GetToggle01(_EnableAdditionalLights) > 0.5)
                 {
                     lighting += input.vertexLighting * _AdditionalLightIntensity;
                 }
-#endif
+            #endif
 
                 color *= max(lighting, 0.0);
 
@@ -438,7 +266,7 @@ Shader "Custom/Vit/Plant_URP"
             {
                 float bladeMask = GetBladeMaskFromUV(input.uv.y);
                 float3 baseWorldPos = TransformObjectToWorld(input.positionOS.xyz);
-                float3 worldPos = ApplyWind(baseWorldPos, bladeMask);
+                float3 worldPos = ApplyPlantMotion(baseWorldPos, bladeMask);
                 float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
 
             #if _CASTING_PUNCTUAL_LIGHT_SHADOW
