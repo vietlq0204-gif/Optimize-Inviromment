@@ -373,29 +373,29 @@ public sealed class GrassWindShaderGUI : ShaderGUI
         {
             materialEditor.ShaderProperty(
                 enableInteraction,
-                MakeLabel("Enable Interaction", "Cho phep material phan ung voi RenderTexture interaction toan cuc cua he co."));
+                MakeLabel("Enable Interaction", "Cho phép material phản ứng với RenderTexture interaction toàn cục của hệ cỏ."));
 
             EditorGUI.BeginDisabledGroup(enableInteraction.floatValue < 0.5f);
-            materialEditor.ShaderProperty(interactionStrength, MakeLabel("Strength", "He so tong quyet dinh loai co nay phan ung manh hay yeu."));
-            materialEditor.ShaderProperty(interactionPushAway, MakeLabel("Push Away", "Do day ngang cua ngon co khi bi interaction tac dong."));
-            materialEditor.ShaderProperty(interactionFlatten, MakeLabel("Flatten", "Muc do interaction ep co chui xuong duoi."));
-            materialEditor.ShaderProperty(interactionVerticalRange, MakeLabel("Vertical Range", "Gioi han interaction theo do cao de tranh anh huong nham tang khac."));
+            materialEditor.ShaderProperty(interactionStrength, MakeLabel("Strength", "Hệ số tổng quyết định loại cỏ này phản ứng mạnh hay yếu trước cùng một nguồn tương tác."));
+            materialEditor.ShaderProperty(interactionPushAway, MakeLabel("Push Away", "Độ nghiêng ngang ban đầu theo hướng tác động của player hoặc vật thể tương tác."));
+            materialEditor.ShaderProperty(interactionFlatten, MakeLabel("Flatten", "Mức độ cỏ bị ép thấp xuống khi đang chịu tác động trực tiếp."));
+            materialEditor.ShaderProperty(interactionVerticalRange, MakeLabel("Vertical Range", "Khoảng cao độ mà interaction còn có hiệu lực, giúp tránh ảnh hưởng nhầm lên tầng địa hình khác."));
             EditorGUI.EndDisabledGroup();
 
             s_ShowInteractionAdvanced = EditorGUILayout.Foldout(s_ShowInteractionAdvanced, "Advanced", true);
             if (s_ShowInteractionAdvanced)
             {
                 EditorGUI.BeginDisabledGroup(enableInteraction.floatValue < 0.5f);
-                materialEditor.ShaderProperty(interactionRadiusMultiplier, MakeLabel("Radius Multiplier", "Mo rong hoac siet lai vung phan ung khi giai ma interaction field."));
-                materialEditor.ShaderProperty(interactionTrail, MakeLabel("Trail Response", "He so legacy de chinh them response trong shader. Thuong khong can khi particle da quyet dinh fade."));
-                materialEditor.ShaderProperty(interactionRecoveryStrength, MakeLabel("Recovery Strength", "He so nhan cuoi cho do rung hoi cua loai co nay."));
-                materialEditor.ShaderProperty(interactionRecoveryFrequency, MakeLabel("Recovery Frequency", "Toc do rung hoi nen cua loai co nay."));
-                materialEditor.ShaderProperty(interactionRecoveryNoiseScale, MakeLabel("Recovery Noise Scale", "Do lech pha world-space de vung co lon khong rung cung nhip."));
+                materialEditor.ShaderProperty(interactionRadiusMultiplier, MakeLabel("Radius Multiplier", "Mở rộng hoặc thu hẹp vùng phản ứng khi shader giải mã interaction field từ RenderTexture."));
+                materialEditor.ShaderProperty(interactionTrail, MakeLabel("Trail Response", "Điều khiển tốc độ nhả độ nghiêng cũ. Giá trị cao giữ độ nghiêng lâu hơn trước khi cỏ bắt đầu hồi rõ."));
+                materialEditor.ShaderProperty(interactionRecoveryStrength, MakeLabel("Recovery Strength", "Biên độ rung hồi khi cỏ đang trả dần về trạng thái ban đầu."));
+                materialEditor.ShaderProperty(interactionRecoveryFrequency, MakeLabel("Recovery Frequency", "Tốc độ dao động trong lúc hồi. Giá trị cao làm cỏ rung nhiều nhịp hơn trước khi dừng."));
+                materialEditor.ShaderProperty(interactionRecoveryNoiseScale, MakeLabel("Recovery Noise Scale", "Độ lệch pha theo world-space để một bãi cỏ lớn không rung cùng nhịp như nhau."));
                 EditorGUI.EndDisabledGroup();
             }
 
             EditorGUILayout.HelpBox(
-                "Particle system bay gio la nguon du lieu chinh cho interaction: emission quyet dinh mat do, lifetime quyet dinh do dai, alpha fade quyet dinh cuong do va quang rung hoi. Material chi con quyet dinh loai co nay phan ung manh hay yeu.",
+                "Particle System quyết định dữ liệu đầu vào của interaction: emission quyết định mật độ, lifetime quyết định độ dài, alpha fade quyết định cường độ và quãng hồi. Material ở đây chủ yếu quyết định cỏ bị đè mạnh tới đâu, hồi nhanh hay chậm và rung mạnh hay nhẹ.",
                 MessageType.None);
             EditorGUILayout.Space(4);
         }

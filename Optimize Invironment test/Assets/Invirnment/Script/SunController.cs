@@ -117,7 +117,7 @@ public sealed class SunController : MonoBehaviour
     {
         if (clock == null)
         {
-            clock = FindFirstObjectByType<MainClock>();
+            clock = FindAnyObjectByType<MainClock>();
         }
     }
 

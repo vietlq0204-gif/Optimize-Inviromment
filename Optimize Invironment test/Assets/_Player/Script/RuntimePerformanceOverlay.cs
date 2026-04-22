@@ -9,7 +9,9 @@ public sealed class RuntimePerformanceOverlay : MonoBehaviour
 {
     [Header("Display")]
     [SerializeField] private bool visible = true;
+#if ENABLE_LEGACY_INPUT_MANAGER
     [SerializeField] private KeyCode toggleKey = KeyCode.F3;
+#endif
 #if ENABLE_INPUT_SYSTEM
     [SerializeField] private Key toggleKeyInputSystem = Key.F3;
 #endif
@@ -38,9 +40,9 @@ public sealed class RuntimePerformanceOverlay : MonoBehaviour
     private void Awake()
     {
         QualitySettings.vSyncCount = 0;
-        Application.targetFrameRate = 144;
+        Application.targetFrameRate = 120;
         maxFrameTimings = Mathf.Clamp(maxFrameTimings, 1, frameTimings.Length);
-        FrameTimingManager.CaptureFrameTimings();
+        FrameTimingManager.CaptureFrameTimings(); 
         
 
     }

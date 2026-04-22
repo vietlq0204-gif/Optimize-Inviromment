@@ -1,5 +1,8 @@
 using UnityEngine;
 using UnityEngine.Rendering;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 /// <summary>
 /// Drives grass interaction from contact and trail particle systems.
@@ -23,6 +26,7 @@ public sealed class GrassInteractionSource : MonoBehaviour
     [Header("Paint")]
     [SerializeField] private ParticleSystem contactParticles;
     [SerializeField] private ParticleSystem trailParticles;
+    [SerializeField, HideInInspector] private Shader interactionStampShader;
 
     private static Material sharedMaterial;
     private static bool missingShaderLogged;
@@ -39,12 +43,23 @@ public sealed class GrassInteractionSource : MonoBehaviour
 
     private void Reset()
     {
+        AssignDefaultShaderIfMissing();
         EnsureParticleSystems();
         ApplyProfile();
     }
 
     private void OnEnable()
     {
+        AssignDefaultShaderIfMissing();
+
+        if (!Application.isPlaying)
+        {
+#if UNITY_EDITOR
+            ScheduleEditorRefresh();
+#endif
+            return;
+        }
+
         EnsureParticleSystems();
         InitializeRuntimeState();
         ApplyProfile();
@@ -53,6 +68,9 @@ public sealed class GrassInteractionSource : MonoBehaviour
 
     private void OnDisable()
     {
+#if UNITY_EDITOR
+        EditorApplication.delayCall -= RefreshFromEditorDelay;
+#endif
         StopSystems();
         hasLastPosition = false;
     }
@@ -61,14 +79,23 @@ public sealed class GrassInteractionSource : MonoBehaviour
     {
         interactionLayer = Mathf.Clamp(interactionLayer, 0, 31);
         heightOffset = Mathf.Max(-5f, heightOffset);
+        AssignDefaultShaderIfMissing();
 
         if (!isActiveAndEnabled)
         {
             return;
         }
 
-        EnsureParticleSystems();
-        ApplyProfile();
+        if (Application.isPlaying)
+        {
+            EnsureParticleSystems();
+            ApplyProfile();
+            return;
+        }
+
+#if UNITY_EDITOR
+        ScheduleEditorRefresh();
+#endif
     }
 
     private void LateUpdate()
@@ -136,7 +163,7 @@ public sealed class GrassInteractionSource : MonoBehaviour
 
     private void EnsureParticleSystems()
     {
-        EnsureSharedMaterial();
+        EnsureSharedMaterial(interactionStampShader);
         if (sharedMaterial == null)
         {
             return;
@@ -225,10 +252,19 @@ public sealed class GrassInteractionSource : MonoBehaviour
 
     private void ConfigureParticleSystem(ParticleSystem particleSystem, bool trailSystem)
     {
+        bool wasPlaying = particleSystem.isPlaying;
+        if (wasPlaying && !Application.isPlaying)
+        {
+            particleSystem.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        }
+
         ParticleSystem.MainModule main = particleSystem.main;
         main.playOnAwake = false;
         main.loop = true;
-        main.duration = Mathf.Max(main.duration, 1f);
+        if (!particleSystem.isPlaying)
+        {
+            main.duration = Mathf.Max(main.duration, 1f);
+        }
         main.simulationSpace = ParticleSystemSimulationSpace.World;
         main.startSpeed = 0f;
         main.startRotation = 0f;
@@ -268,6 +304,11 @@ public sealed class GrassInteractionSource : MonoBehaviour
         }
 
         ApplyRendererDefaults(particleSystem);
+
+        if (wasPlaying && Application.isPlaying)
+        {
+            PlayIfNeeded(particleSystem);
+        }
     }
 
     private void ApplyRendererDefaults(ParticleSystem particleSystem)
@@ -406,9 +447,11 @@ public sealed class GrassInteractionSource : MonoBehaviour
                 ? new[]
                 {
                     new GradientAlphaKey(1f, 0f),
-                    new GradientAlphaKey(0.92f, 0.4f),
-                    new GradientAlphaKey(0.18f, 0.85f),
-                    new GradientAlphaKey(0f, 0.96f),
+                    new GradientAlphaKey(0.82f, 0.14f),
+                    new GradientAlphaKey(0.48f, 0.36f),
+                    new GradientAlphaKey(0.2f, 0.62f),
+                    new GradientAlphaKey(0.06f, 0.84f),
+                    new GradientAlphaKey(0f, 0.94f),
                     new GradientAlphaKey(0f, 1f),
                 }
                 : new[]
@@ -539,14 +582,9 @@ public sealed class GrassInteractionSource : MonoBehaviour
         return positionChanged || rotationChanged || scaleChanged;
     }
 
-    private static void EnsureSharedMaterial()
+    private static void EnsureSharedMaterial(Shader defaultShader)
     {
-        if (sharedMaterial != null)
-        {
-            return;
-        }
-
-        Shader shader = Shader.Find("Hidden/Vit/GrassInteractionStamp");
+        Shader shader = defaultShader != null ? defaultShader : Shader.Find("Hidden/Vit/GrassInteractionStamp");
         if (shader == null)
         {
             if (!missingShaderLogged)
@@ -558,10 +596,63 @@ public sealed class GrassInteractionSource : MonoBehaviour
             return;
         }
 
+        if (sharedMaterial != null && sharedMaterial.shader == shader)
+        {
+            return;
+        }
+
+        if (sharedMaterial != null)
+        {
+            if (Application.isPlaying)
+            {
+                Destroy(sharedMaterial);
+            }
+            else
+            {
+                DestroyImmediate(sharedMaterial);
+            }
+        }
+
         sharedMaterial = new Material(shader)
         {
             hideFlags = HideFlags.HideAndDontSave,
         };
         missingShaderLogged = false;
     }
+
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    private void AssignDefaultShaderIfMissing()
+    {
+#if UNITY_EDITOR
+        if (interactionStampShader == null)
+        {
+            interactionStampShader = AssetDatabase.LoadAssetAtPath<Shader>("Assets/_Grass/Shader/SG_GrassInteractionStamp.shader");
+            if (interactionStampShader != null)
+            {
+                EditorUtility.SetDirty(this);
+            }
+        }
+#endif
+    }
+
+#if UNITY_EDITOR
+    private void ScheduleEditorRefresh()
+    {
+        EditorApplication.delayCall -= RefreshFromEditorDelay;
+        EditorApplication.delayCall += RefreshFromEditorDelay;
+    }
+
+    private void RefreshFromEditorDelay()
+    {
+        EditorApplication.delayCall -= RefreshFromEditorDelay;
+        if (this == null || !isActiveAndEnabled || Application.isPlaying)
+        {
+            return;
+        }
+
+        StopSystems();
+        EnsureParticleSystems();
+        ApplyProfile();
+    }
+#endif
 }

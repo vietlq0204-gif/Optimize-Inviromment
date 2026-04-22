@@ -12,6 +12,10 @@ using UnityEditor;
 public class GrassInteractionSystem : MonoBehaviour
 {
     private static readonly Color NeutralInteractionClearColor = new(0.5f, 0.5f, 0f, 0f);
+    private static readonly int CurrentMapId = Shader.PropertyToID("_CurrentInteractionMap");
+    private static readonly int PreviousMapId = Shader.PropertyToID("_PreviousInteractionMap");
+    private static readonly int PersistenceId = Shader.PropertyToID("_HistoryPersistence");
+    private static readonly int NeutralColorId = Shader.PropertyToID("_NeutralInteractionColor");
 
     protected enum InteractionResolution
     {
@@ -42,19 +46,45 @@ public class GrassInteractionSystem : MonoBehaviour
     [SerializeField] protected Color clearColor = new(0.5f, 0.5f, 0f, 0f);
     [SerializeField] protected bool hideInteractionLayerFromGameCameras = true;
 
+    [Header("History")]
+    [SerializeField] protected float historyBlendSeconds = 0.12f;
+    [SerializeField, HideInInspector] private Shader accumulationShader;
+
     protected Camera interactionCamera;
     protected RenderTexture interactionTexture;
+    protected RenderTexture interactionHistoryA;
+    protected RenderTexture interactionHistoryB;
     private readonly Dictionary<Camera, int> overriddenCameraMasks = new();
+    private Material accumulationMaterial;
+    private bool historyAIsCurrent = true;
+
+    protected virtual void Reset()
+    {
+        AssignDefaultShadersIfMissing();
+    }
 
     protected virtual void OnEnable()
     {
         NormalizeClearColor();
+        AssignDefaultShadersIfMissing();
+
+        if (!Application.isPlaying)
+        {
+#if UNITY_EDITOR
+            ScheduleEditorRefresh();
+#endif
+            return;
+        }
+
         EnsureResources();
         UpdateInteractionState();
     }
 
     protected virtual void OnDisable()
     {
+#if UNITY_EDITOR
+        EditorApplication.delayCall -= RefreshFromEditorDelay;
+#endif
         RestoreGameplayCameraMasks();
         ReleaseResources();
         ClearGlobals();
@@ -64,15 +94,25 @@ public class GrassInteractionSystem : MonoBehaviour
     {
         orthographicSize = Mathf.Max(0.1f, orthographicSize);
         globalStrength = Mathf.Max(0f, globalStrength);
+        historyBlendSeconds = Mathf.Max(0.01f, historyBlendSeconds);
         NormalizeClearColor();
+        AssignDefaultShadersIfMissing();
 
         if (!isActiveAndEnabled)
         {
             return;
         }
 
-        EnsureResources();
-        UpdateInteractionState();
+        if (Application.isPlaying)
+        {
+            EnsureResources();
+            UpdateInteractionState();
+            return;
+        }
+
+#if UNITY_EDITOR
+        ScheduleEditorRefresh();
+#endif
     }
 
     protected virtual void LateUpdate()
@@ -90,6 +130,8 @@ public class GrassInteractionSystem : MonoBehaviour
     {
         EnsureCamera();
         EnsureRenderTexture();
+        EnsureHistoryTextures();
+        EnsureAccumulationMaterial();
     }
 
     protected virtual void EnsureCamera()
@@ -119,7 +161,7 @@ public class GrassInteractionSystem : MonoBehaviour
             interactionCamera = cameraObject.AddComponent<Camera>();
         }
 
-        interactionCamera.enabled = true;
+        interactionCamera.enabled = false;
         interactionCamera.orthographic = true;
         interactionCamera.clearFlags = CameraClearFlags.SolidColor;
         interactionCamera.backgroundColor = clearColor;
@@ -185,6 +227,78 @@ public class GrassInteractionSystem : MonoBehaviour
         interactionCamera.targetTexture = interactionTexture;
     }
 
+    protected virtual void EnsureHistoryTextures()
+    {
+        int textureSize = (int)resolution;
+        GraphicsFormat colorFormat = GetCompatibleColorFormat();
+        RenderTextureDescriptor descriptor = new(textureSize, textureSize)
+        {
+            msaaSamples = 1,
+            volumeDepth = 1,
+            graphicsFormat = colorFormat,
+            depthStencilFormat = GraphicsFormat.None,
+            sRGB = false,
+            useMipMap = false,
+            autoGenerateMips = false,
+        };
+
+        interactionHistoryA = EnsureHistoryTexture(interactionHistoryA, descriptor, "GrassInteractionHistoryA");
+        interactionHistoryB = EnsureHistoryTexture(interactionHistoryB, descriptor, "GrassInteractionHistoryB");
+    }
+
+    protected RenderTexture EnsureHistoryTexture(RenderTexture texture, RenderTextureDescriptor descriptor, string name)
+    {
+        bool needsNewTexture =
+            texture == null ||
+            !texture.IsCreated() ||
+            texture.width != descriptor.width ||
+            texture.height != descriptor.height ||
+            texture.graphicsFormat != descriptor.graphicsFormat;
+
+        if (!needsNewTexture)
+        {
+            return texture;
+        }
+
+        if (texture != null)
+        {
+            texture.Release();
+            DestroyImmediateSafe(texture);
+        }
+
+        texture = new RenderTexture(descriptor)
+        {
+            name = name,
+            filterMode = FilterMode.Bilinear,
+            wrapMode = TextureWrapMode.Clamp,
+        };
+
+        texture.Create();
+        ClearRenderTexture(texture, clearColor);
+        historyAIsCurrent = true;
+        return texture;
+    }
+
+    protected virtual void EnsureAccumulationMaterial()
+    {
+        if (accumulationMaterial != null)
+        {
+            return;
+        }
+
+        Shader shader = accumulationShader != null ? accumulationShader : Shader.Find("Hidden/Vit/GrassInteractionAccumulate");
+        if (shader == null)
+        {
+            Debug.LogWarning("GrassInteractionSystem could not find shader 'Hidden/Vit/GrassInteractionAccumulate'.", this);
+            return;
+        }
+
+        accumulationMaterial = new Material(shader)
+        {
+            hideFlags = HideFlags.HideAndDontSave,
+        };
+    }
+
     protected virtual void UpdateInteractionState()
     {
         Vector3 followPosition = GetFollowPosition();
@@ -197,8 +311,22 @@ public class GrassInteractionSystem : MonoBehaviour
         interactionCamera.cullingMask = cullingMask;
         interactionCamera.backgroundColor = clearColor;
 
-        Shader.SetGlobalTexture(InteractionMapId, interactionTexture);
-        Shader.SetGlobalTexture(InteractionRtAliasId, interactionTexture);
+        bool canRenderInteraction = CanRenderInteractionNow();
+        if (canRenderInteraction)
+        {
+            RenderInteractionHistory();
+        }
+
+        RenderTexture sampledInteraction = canRenderInteraction && HasHistoryAccumulation()
+            ? GetCurrentHistoryTexture()
+            : interactionTexture;
+        if (sampledInteraction == null)
+        {
+            sampledInteraction = interactionTexture;
+        }
+
+        Shader.SetGlobalTexture(InteractionMapId, sampledInteraction);
+        Shader.SetGlobalTexture(InteractionRtAliasId, sampledInteraction);
 
         Vector4 cameraData = new(
             interactionCamera.transform.position.x,
@@ -214,10 +342,10 @@ public class GrassInteractionSystem : MonoBehaviour
         Shader.SetGlobalVector(
             InteractionTexelSizeId,
             new Vector4(
-                1f / interactionTexture.width,
-                1f / interactionTexture.height,
-                interactionTexture.width,
-                interactionTexture.height));
+                1f / sampledInteraction.width,
+                1f / sampledInteraction.height,
+                sampledInteraction.width,
+                sampledInteraction.height));
 
         Camera referenceCamera = GetReferenceCamera();
         Vector3 cameraForward = referenceCamera != null ? referenceCamera.transform.forward : Vector3.forward;
@@ -235,6 +363,65 @@ public class GrassInteractionSystem : MonoBehaviour
             new Vector4(cameraForward.x, cameraForward.y, cameraForward.z, 0f));
 
         SyncGameplayCameraMasks();
+    }
+
+    protected virtual void RenderInteractionHistory()
+    {
+        if (interactionCamera == null || interactionTexture == null)
+        {
+            return;
+        }
+
+        interactionCamera.Render();
+
+        if (!HasHistoryAccumulation())
+        {
+            return;
+        }
+
+        RenderTexture previousHistory = GetCurrentHistoryTexture();
+        RenderTexture nextHistory = historyAIsCurrent ? interactionHistoryB : interactionHistoryA;
+        float deltaTime = Application.isPlaying ? Mathf.Max(Time.deltaTime, 0.0001f) : (1f / 60f);
+        float blendSeconds = Mathf.Max(historyBlendSeconds, 0.0001f);
+        float persistence = Mathf.Exp(-deltaTime / blendSeconds);
+
+        accumulationMaterial.SetTexture(CurrentMapId, interactionTexture);
+        accumulationMaterial.SetTexture(PreviousMapId, previousHistory);
+        accumulationMaterial.SetFloat(PersistenceId, persistence);
+        accumulationMaterial.SetColor(NeutralColorId, clearColor);
+        Graphics.Blit(null, nextHistory, accumulationMaterial, 0);
+
+        historyAIsCurrent = !historyAIsCurrent;
+    }
+
+    protected virtual bool CanRenderInteractionNow()
+    {
+        if (!Application.isPlaying)
+        {
+            return false;
+        }
+
+        if (interactionCamera == null || interactionTexture == null)
+        {
+            return false;
+        }
+
+        if (!interactionTexture.IsCreated())
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    protected RenderTexture GetCurrentHistoryTexture()
+    {
+        return historyAIsCurrent ? interactionHistoryA : interactionHistoryB;
+    }
+
+    protected bool HasHistoryAccumulation()
+    {
+        return accumulationMaterial != null && interactionHistoryA != null && interactionHistoryB != null;
     }
 
     protected Vector3 GetFollowPosition()
@@ -265,6 +452,26 @@ public class GrassInteractionSystem : MonoBehaviour
             interactionTexture.Release();
             DestroyImmediateSafe(interactionTexture);
             interactionTexture = null;
+        }
+
+        if (interactionHistoryA != null)
+        {
+            interactionHistoryA.Release();
+            DestroyImmediateSafe(interactionHistoryA);
+            interactionHistoryA = null;
+        }
+
+        if (interactionHistoryB != null)
+        {
+            interactionHistoryB.Release();
+            DestroyImmediateSafe(interactionHistoryB);
+            interactionHistoryB = null;
+        }
+
+        if (accumulationMaterial != null)
+        {
+            DestroyImmediateSafe(accumulationMaterial);
+            accumulationMaterial = null;
         }
 
         if (interactionCamera != null)
@@ -441,4 +648,47 @@ public class GrassInteractionSystem : MonoBehaviour
                Mathf.Approximately(a.b, b.b) &&
                Mathf.Approximately(a.a, b.a);
     }
+
+    protected static void ClearRenderTexture(RenderTexture texture, Color color)
+    {
+        RenderTexture previous = RenderTexture.active;
+        RenderTexture.active = texture;
+        GL.Clear(true, true, color);
+        RenderTexture.active = previous;
+    }
+
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    private void AssignDefaultShadersIfMissing()
+    {
+#if UNITY_EDITOR
+        if (accumulationShader == null)
+        {
+            accumulationShader = AssetDatabase.LoadAssetAtPath<Shader>("Assets/_Grass/Shader/SG_GrassInteractionAccumulate.shader");
+            if (accumulationShader != null)
+            {
+                EditorUtility.SetDirty(this);
+            }
+        }
+#endif
+    }
+
+#if UNITY_EDITOR
+    private void ScheduleEditorRefresh()
+    {
+        EditorApplication.delayCall -= RefreshFromEditorDelay;
+        EditorApplication.delayCall += RefreshFromEditorDelay;
+    }
+
+    private void RefreshFromEditorDelay()
+    {
+        EditorApplication.delayCall -= RefreshFromEditorDelay;
+        if (this == null || !isActiveAndEnabled || Application.isPlaying)
+        {
+            return;
+        }
+
+        EnsureResources();
+        UpdateInteractionState();
+    }
+#endif
 }

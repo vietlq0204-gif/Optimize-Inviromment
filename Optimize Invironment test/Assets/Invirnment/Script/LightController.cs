@@ -129,7 +129,7 @@ public sealed class LightController : MonoBehaviour
     {
         if (clock == null)
         {
-            clock = FindFirstObjectByType<MainClock>();
+            clock = FindAnyObjectByType<MainClock>();
         }
     }
 }
