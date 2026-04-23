@@ -55,7 +55,7 @@ public class CameraController : MonoBehaviour
 #if ENABLE_INPUT_SYSTEM
         Vector2 look = Vector2.zero;
 
-        if (Mouse.current != null)
+        if (Mouse.current != null && !Cursor.visible)
         {
             look = Mouse.current.delta.ReadValue() * mouseDeltaScale;
         }
