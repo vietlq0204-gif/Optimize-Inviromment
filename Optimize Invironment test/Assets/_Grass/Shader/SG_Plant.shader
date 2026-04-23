@@ -82,6 +82,111 @@ Shader "Custom/Vit/Plant_URP"
             animatedWorldPos = ApplyInteraction(animatedWorldPos, bladeMask);
             return ApplyCameraCompensation(animatedWorldPos, normalWS, bladeMask);
         }
+
+        struct PlantDepthAttributes
+        {
+            float4 positionOS : POSITION;
+            float3 normalOS : NORMAL;
+            float2 uv : TEXCOORD0;
+            UNITY_VERTEX_INPUT_INSTANCE_ID
+        };
+
+        struct PlantDepthVaryings
+        {
+            float4 positionCS : SV_POSITION;
+            float2 uv : TEXCOORD0;
+            UNITY_VERTEX_INPUT_INSTANCE_ID
+            UNITY_VERTEX_OUTPUT_STEREO
+        };
+
+        struct PlantDepthNormalsVaryings
+        {
+            float4 positionCS : SV_POSITION;
+            float2 uv : TEXCOORD0;
+            float3 normalWS : TEXCOORD1;
+            UNITY_VERTEX_INPUT_INSTANCE_ID
+            UNITY_VERTEX_OUTPUT_STEREO
+        };
+
+        float3 GetAnimatedPlantWorldPos(float4 positionOS, float3 normalOS, float2 uv)
+        {
+            float bladeMask = GetBladeMaskFromUV(uv.y);
+            float3 baseWorldPos = TransformObjectToWorld(positionOS.xyz);
+            float3 normalWS = TransformObjectToWorldNormal(normalOS);
+            return ApplyPlantMotion(baseWorldPos, normalWS, bladeMask);
+        }
+
+        void AlphaClipPlant(float2 uv)
+        {
+            half4 tex = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, uv);
+            half alpha = tex.a * _BaseColor.a;
+            clip(alpha - _Cutoff);
+        }
+
+        PlantDepthVaryings DepthOnlyVertex(PlantDepthAttributes input)
+        {
+            PlantDepthVaryings output = (PlantDepthVaryings)0;
+            UNITY_SETUP_INSTANCE_ID(input);
+            UNITY_TRANSFER_INSTANCE_ID(input, output);
+            UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
+            float3 worldPos = GetAnimatedPlantWorldPos(input.positionOS, input.normalOS, input.uv);
+            output.positionCS = TransformWorldToHClip(worldPos);
+            output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
+            return output;
+        }
+
+        half DepthOnlyFragment(PlantDepthVaryings input) : SV_TARGET
+        {
+            UNITY_SETUP_INSTANCE_ID(input);
+            UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+
+            AlphaClipPlant(input.uv);
+            return input.positionCS.z;
+        }
+
+        PlantDepthNormalsVaryings DepthNormalsOnlyVertex(PlantDepthAttributes input)
+        {
+            PlantDepthNormalsVaryings output = (PlantDepthNormalsVaryings)0;
+            UNITY_SETUP_INSTANCE_ID(input);
+            UNITY_TRANSFER_INSTANCE_ID(input, output);
+            UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
+            float3 worldPos = GetAnimatedPlantWorldPos(input.positionOS, input.normalOS, input.uv);
+            output.positionCS = TransformWorldToHClip(worldPos);
+            output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
+            output.normalWS = TransformObjectToWorldNormal(input.normalOS);
+            return output;
+        }
+
+        void DepthNormalsOnlyFragment(
+            PlantDepthNormalsVaryings input,
+            out half4 outNormalWS : SV_Target0
+        #ifdef _WRITE_RENDERING_LAYERS
+            , out uint outRenderingLayers : SV_Target1
+        #endif
+        )
+        {
+            UNITY_SETUP_INSTANCE_ID(input);
+            UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+
+            AlphaClipPlant(input.uv);
+
+        #if defined(_GBUFFER_NORMALS_OCT)
+            float3 normalWS = normalize(input.normalWS);
+            float2 octNormalWS = PackNormalOctQuadEncode(normalWS);
+            float2 remappedOctNormalWS = saturate(octNormalWS * 0.5 + 0.5);
+            half3 packedNormalWS = PackFloat2To888(remappedOctNormalWS);
+            outNormalWS = half4(packedNormalWS, 0.0);
+        #else
+            float3 normalWS = NormalizeNormalPerPixel(input.normalWS);
+            outNormalWS = half4(normalWS, 0.0);
+        #endif
+
+        #ifdef _WRITE_RENDERING_LAYERS
+            outRenderingLayers = EncodeMeshRenderingLayer();
+        #endif
+        }
         ENDHLSL
 
         Pass
@@ -224,6 +329,47 @@ Shader "Custom/Vit/Plant_URP"
 
                 return half4(color, alpha);
             }
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "DepthOnly"
+            Tags
+            {
+                "LightMode"="DepthOnly"
+            }
+
+            Cull Off
+            ZWrite On
+            ColorMask R
+
+            HLSLPROGRAM
+            #pragma target 2.0
+            #pragma vertex DepthOnlyVertex
+            #pragma fragment DepthOnlyFragment
+            #pragma multi_compile_instancing
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Name "DepthNormalsOnly"
+            Tags
+            {
+                "LightMode"="DepthNormalsOnly"
+            }
+
+            Cull Off
+            ZWrite On
+
+            HLSLPROGRAM
+            #pragma target 2.0
+            #pragma vertex DepthNormalsOnlyVertex
+            #pragma fragment DepthNormalsOnlyFragment
+            #pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT
+            #pragma multi_compile_instancing
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RenderingLayers.hlsl"
             ENDHLSL
         }
 
