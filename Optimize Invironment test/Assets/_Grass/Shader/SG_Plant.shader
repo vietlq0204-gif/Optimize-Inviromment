@@ -209,6 +209,7 @@ Shader "Custom/Vit/Plant_URP"
             #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
             #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
             #pragma multi_compile_fragment _ _SHADOWS_SOFT
+            #pragma multi_compile_fog
 
             struct Attributes
             {
@@ -226,6 +227,7 @@ Shader "Custom/Vit/Plant_URP"
                 float bladeMask : TEXCOORD2;
                 float3 normalWS : TEXCOORD3;
                 float3 vertexLighting : TEXCOORD4;
+                half fogFactor : TEXCOORD5;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -247,6 +249,7 @@ Shader "Custom/Vit/Plant_URP"
                 output.bladeMask = bladeMask;
                 output.normalWS = normalWS;
                 output.vertexLighting = float3(0.0, 0.0, 0.0);
+                output.fogFactor = ComputeFogFactor(output.positionHCS.z);
 
             #if defined(_ADDITIONAL_LIGHTS_VERTEX)
                 if (GetToggle01(_EnableAdditionalLights) > 0.5)
@@ -326,6 +329,7 @@ Shader "Custom/Vit/Plant_URP"
             #endif
 
                 color *= max(lighting, 0.0);
+                color = MixFog(color, input.fogFactor);
 
                 return half4(color, alpha);
             }
