@@ -3,7 +3,7 @@ Shader "Custom/Vit/Plant_URP"
     Properties
     {
         [MainTexture] _BaseMap ("Base Map", 2D) = "white" {}
-        [MainColor] _BaseColor ("Base Color", Color) = (0.6528301,0.6320304,0.2549732,1)
+        [MainColor] _BaseColor ("Base Color", Color) = (0.6528301,0.6320304,0.2549731,1)
         _Cutoff ("Alpha Cutoff", Range(0,1)) = 0.5
         [Toggle] _ReceiveShadows ("Receive Shadows", Float) = 1
         _ShadowStrength ("Shadow Strength", Range(0,1)) = 1
@@ -39,7 +39,7 @@ Shader "Custom/Vit/Plant_URP"
         [HideInInspector] _NearColor ("Near Color", Color) = (0.6595166,0.7132074,0,1)
         [HideInInspector] _FarColor ("Far Color", Color) = (0.8032724,1,0,1)
         [HideInInspector] _NearFarRange ("Near/Far Range", Vector) = (5,18,0,0)
-        [HideInInspector] _BottomColor ("Bottom Color", Color) = (0.3660378,0.3660378,0.3660378,1)
+        [HideInInspector] _BottomColor ("Bottom Color", Color) = (0.3660377,0.3660377,0.3660377,1)
         [HideInInspector] _HeightBlend ("Height Blend", Range(0,20)) = 4.5
 
         [HideInInspector] _UseTerrainColor ("Use Terrain Color", Float) = 0
@@ -47,14 +47,14 @@ Shader "Custom/Vit/Plant_URP"
         [HideInInspector] _TerrainBlendStrength ("Terrain Blend Strength", Range(0,1)) = 0.35
 
         [Toggle] _EnableInteraction ("Enable Interaction", Float) = 1
-        [HideInInspector] _InteractionStrength ("Interaction Strength", Range(0,2)) = 1
-        [HideInInspector] _InteractionPushAway ("Interaction Push Away", Range(0,2)) = 0.7
-        [HideInInspector] _InteractionFlatten ("Interaction Flatten", Range(0,1)) = 0.097
+        [HideInInspector] _InteractionStrength ("Interaction Strength", Range(0,2)) = 1.5
+        [HideInInspector] _InteractionPushAway ("Interaction Push Away", Range(0,2)) = 0
+        [HideInInspector] _InteractionFlatten ("Interaction Flatten", Range(0,1)) = 0.01
         [HideInInspector] _InteractionRadiusMultiplier ("Interaction Radius Multiplier", Range(0.25,4)) = 1.21
-        [HideInInspector] _InteractionVerticalRange ("Interaction Vertical Range", Range(0.1,5)) = 1.21
+        [HideInInspector] _InteractionVerticalRange ("Interaction Vertical Range", Range(0.1,5)) = 1
         [HideInInspector] _InteractionTrail ("Interaction Trail Response", Range(0,1)) = 0.376
-        [HideInInspector] _InteractionRecoveryStrength ("Interaction Recovery Strength", Range(0,1)) = 0.565
-        [HideInInspector] _InteractionRecoveryFrequency ("Interaction Recovery Frequency", Range(0,24)) = 13.7
+        [HideInInspector] _InteractionRecoveryStrength ("Interaction Recovery Strength", Range(0,1)) = 1
+        [HideInInspector] _InteractionRecoveryFrequency ("Interaction Recovery Frequency", Range(0,24)) = 10
         [HideInInspector] _InteractionRecoveryNoiseScale ("Interaction Recovery Noise Scale", Range(0,8)) = 8
     }
 
