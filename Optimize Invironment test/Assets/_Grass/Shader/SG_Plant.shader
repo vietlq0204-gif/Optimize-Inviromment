@@ -3,6 +3,7 @@ Shader "Custom/Vit/Plant_URP"
     Properties
     {
         [MainTexture] _BaseMap ("Base Map", 2D) = "white" {}
+        [HideInInspector] _MainTex ("MainTex", 2D) = "white" {}
         [MainColor] _BaseColor ("Base Color", Color) = (0.6528301,0.6320304,0.2549731,1)
         _Cutoff ("Alpha Cutoff", Range(0,1)) = 0.5
         [Toggle] _ReceiveShadows ("Receive Shadows", Float) = 1
@@ -45,6 +46,8 @@ Shader "Custom/Vit/Plant_URP"
         [HideInInspector] _UseTerrainColor ("Use Terrain Color", Float) = 0
         [HideInInspector] _TerrainColor ("Terrain Color", Color) = (0.9887863,1,0,1)
         [HideInInspector] _TerrainBlendStrength ("Terrain Blend Strength", Range(0,1)) = 0.35
+        [HideInInspector] _DetailFallbackMode ("Detail Fallback Mode", Float) = 0
+        [HideInInspector] _DetailFallbackLightingMin ("Detail Fallback Lighting Min", Range(0,1)) = 0.8
 
         [Toggle] _EnableInteraction ("Enable Interaction", Float) = 1
         [HideInInspector] _InteractionStrength ("Interaction Strength", Range(0,2)) = 1.5
@@ -78,6 +81,12 @@ Shader "Custom/Vit/Plant_URP"
 
         float3 ApplyPlantMotion(float3 worldPos, float3 normalWS, float bladeMask)
         {
+            if (UseDetailFallback() > 0.5)
+            {
+                float3 animatedWorldPos = ApplyWind(worldPos, bladeMask);
+                return ApplyCameraCompensation(animatedWorldPos, normalWS, bladeMask);
+            }
+
             float3 animatedWorldPos = ApplyWind(worldPos, bladeMask);
             animatedWorldPos = ApplyInteraction(animatedWorldPos, bladeMask);
             return ApplyCameraCompensation(animatedWorldPos, normalWS, bladeMask);
@@ -281,6 +290,23 @@ Shader "Custom/Vit/Plant_URP"
 
                 float3 normalWS = normalize(input.normalWS);
                 float3 lighting = 0.0;
+
+                if (UseDetailFallback() > 0.5)
+                {
+                    if (GetToggle01(_EnableAmbient) > 0.5)
+                    {
+                        lighting += _AmbientIntensity;
+                    }
+
+                    if (GetToggle01(_EnableMainLight) > 0.5)
+                    {
+                        Light mainLight = GetMainLight();
+                        lighting += mainLight.color * (GetDiffuseTerm(normalWS, mainLight.direction) * _MainLightIntensity);
+                    }
+
+                    color *= max(lighting, _DetailFallbackLightingMin.xxx);
+                    return half4(saturate(color), alpha);
+                }
 
                 if (GetToggle01(_EnableAmbient) > 0.5)
                 {

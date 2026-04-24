@@ -44,6 +44,8 @@ CBUFFER_START(UnityPerMaterial)
     float _UseTerrainColor;
     float4 _TerrainColor;
     float _TerrainBlendStrength;
+    float _DetailFallbackMode;
+    float _DetailFallbackLightingMin;
     float _EnableInteraction;
     float _InteractionStrength;
     float _InteractionPushAway;
@@ -66,6 +68,11 @@ float GetBladeMaskFromUV(float uvY)
 float GetToggle01(float value)
 {
     return step(0.5, value);
+}
+
+float UseDetailFallback()
+{
+    return GetToggle01(_DetailFallbackMode);
 }
 
 float GetWindLean01()

@@ -22,15 +22,41 @@ public sealed class CursorVisibilityController : MonoBehaviour
     [Header("Safety")]
     [SerializeField] private bool showCursorOnDisable = true;
 
+    private bool wantsCursorHidden;
+
+    public static bool IsCursorCaptured
+    {
+        get
+        {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            return Cursor.lockState == CursorLockMode.Locked;
+#else
+            return Cursor.lockState == CursorLockMode.Locked || !Cursor.visible;
+#endif
+        }
+    }
+
+    private void Awake()
+    {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        TryDisableStickyCursorLock();
+#endif
+    }
+
     private void Start()
     {
-        if (hideCursorOnStart)
+        wantsCursorHidden = hideCursorOnStart;
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+        if (wantsCursorHidden)
         {
-            HideCursor();
+            // Browsers only allow pointer lock after user interaction.
+            ShowCursorInternal();
             return;
         }
+#endif
 
-        ShowCursor();
+        ApplyRequestedCursorState();
     }
 
     private void Update()
@@ -38,9 +64,25 @@ public sealed class CursorVisibilityController : MonoBehaviour
         if (WasShowCursorPressed())
         {
             ShowCursor();
+            return;
         }
 
-        if (Cursor.visible && hideCursorOnMouseClick && WasMouseClicked())
+        if (wantsCursorHidden)
+        {
+            if (!IsCursorCaptured)
+            {
+                SyncUnlockedCursorState();
+
+                if (WasMouseClicked())
+                {
+                    ApplyHiddenCursorState();
+                }
+            }
+
+            return;
+        }
+
+        if (hideCursorOnMouseClick && WasMouseClicked())
         {
             HideCursor();
         }
@@ -48,14 +90,14 @@ public sealed class CursorVisibilityController : MonoBehaviour
 
     public void HideCursor()
     {
-        Cursor.visible = false;
-        Cursor.lockState = lockCursorWhenHidden ? CursorLockMode.Locked : CursorLockMode.None;
+        wantsCursorHidden = true;
+        ApplyHiddenCursorState();
     }
 
     public void ShowCursor()
     {
-        Cursor.visible = true;
-        Cursor.lockState = CursorLockMode.None;
+        wantsCursorHidden = false;
+        ShowCursorInternal();
     }
 
     private bool WasShowCursorPressed()
@@ -94,6 +136,53 @@ public sealed class CursorVisibilityController : MonoBehaviour
             Input.GetMouseButtonDown(2);
 #else
         return false;
+#endif
+    }
+
+    private void ApplyRequestedCursorState()
+    {
+        if (wantsCursorHidden)
+        {
+            ApplyHiddenCursorState();
+            return;
+        }
+
+        ShowCursorInternal();
+    }
+
+    private void ApplyHiddenCursorState()
+    {
+        Cursor.visible = false;
+        Cursor.lockState = lockCursorWhenHidden ? CursorLockMode.Locked : CursorLockMode.None;
+    }
+
+    private static void ShowCursorInternal()
+    {
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+    }
+
+    private static void SyncUnlockedCursorState()
+    {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        if (Cursor.lockState != CursorLockMode.Locked)
+        {
+            Cursor.visible = true;
+        }
+#endif
+    }
+
+    private static void TryDisableStickyCursorLock()
+    {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        System.Type webGlInputType = typeof(Cursor).Assembly.GetType("UnityEngine.WebGLInput");
+        System.Reflection.PropertyInfo stickyCursorLockProperty =
+            webGlInputType?.GetProperty("stickyCursorLock", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+
+        if (stickyCursorLockProperty != null && stickyCursorLockProperty.CanWrite)
+        {
+            stickyCursorLockProperty.SetValue(null, false);
+        }
 #endif
     }
 
