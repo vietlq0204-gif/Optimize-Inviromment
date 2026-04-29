@@ -643,6 +643,11 @@ public sealed class PlantShaderGUI : ShaderGUI
     private static bool DrawToggleFoldoutHeader(ref bool foldout, MaterialProperty toggleProperty, GUIContent label)
     {
         Rect rect = EditorGUILayout.GetControlRect();
+        rect = EditorGUI.IndentedRect(rect);
+
+        int previousIndentLevel = EditorGUI.indentLevel;
+        EditorGUI.indentLevel = 0;
+
         Rect foldoutRect = new(rect.x, rect.y, 16f, rect.height);
         Rect toggleRect = new(rect.x + 16f, rect.y, 18f, rect.height);
         Rect labelRect = new(rect.x + 36f, rect.y, rect.width - 36f, rect.height);
@@ -650,7 +655,8 @@ public sealed class PlantShaderGUI : ShaderGUI
         Event currentEvent = Event.current;
         if (currentEvent.type == EventType.MouseDown && labelRect.Contains(currentEvent.mousePosition))
         {
-            foldout = !foldout;
+            bool currentEnabled = toggleProperty.floatValue > 0.5f;
+            toggleProperty.floatValue = currentEnabled ? 0f : 1f;
             currentEvent.Use();
         }
 
@@ -666,6 +672,7 @@ public sealed class PlantShaderGUI : ShaderGUI
 
         EditorGUI.showMixedValue = false;
         EditorGUI.LabelField(labelRect, label, EditorStyles.boldLabel);
+        EditorGUI.indentLevel = previousIndentLevel;
         return isEnabled;
     }
 
