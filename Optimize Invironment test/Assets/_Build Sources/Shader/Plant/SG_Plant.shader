@@ -31,6 +31,12 @@ Shader "Custom/Vit/Plant_URP"
         _GrassDistanceBlurOpacity ("Grass Distance Blur Opacity", Range(0.1,1)) = 0.68
         _GrassDistanceBlurBrightness ("Grass Distance Blur Brightness", Range(0,1)) = 0.35
         _GrassDistanceBlurCutoffShift ("Grass Distance Blur Cutoff Shift", Range(0,0.5)) = 0.12
+        [Toggle] _EnableGrassShadowNoise ("Enable Grass Shadow Noise", Float) = 0
+        [NoScaleOffset] _GrassShadowNoiseTex ("Grass Shadow Noise", 2D) = "white" {}
+        _GrassShadowNoiseStrength ("Grass Shadow Noise Strength", Range(0,1)) = 0
+        _GrassShadowNoiseContrast ("Grass Shadow Noise Contrast", Range(0.1,4)) = 1.5
+        _GrassShadowNoiseScale ("Grass Shadow Noise Scale", Vector) = (24,18,0,0)
+        _GrassShadowNoiseScrollSpeed ("Grass Shadow Noise Scroll Speed", Range(0,5)) = 0.08
         [HideInInspector] _PlantSrcBlend ("Plant Src Blend", Float) = 1
         [HideInInspector] _PlantDstBlend ("Plant Dst Blend", Float) = 0
         [HideInInspector] _PlantZWrite ("Plant ZWrite", Float) = 1
@@ -298,6 +304,7 @@ Shader "Custom/Vit/Plant_URP"
                 float3 normalWS : TEXCOORD3;
                 float3 vertexLighting : TEXCOORD4;
                 half fogFactor : TEXCOORD5;
+                float3 shadowWorldPos : TEXCOORD6;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -321,6 +328,7 @@ Shader "Custom/Vit/Plant_URP"
                 output.normalWS = normalWS;
                 output.vertexLighting = float3(0.0, 0.0, 0.0);
                 output.fogFactor = ComputeFogFactor(output.positionHCS.z);
+                output.shadowWorldPos = baseWorldPos;
 
             #if defined(_ADDITIONAL_LIGHTS_VERTEX)
                 if (GetToggle01(_EnableAdditionalLights) > 0.5)
@@ -368,6 +376,7 @@ Shader "Custom/Vit/Plant_URP"
                 color *= GetDistanceTint(input.worldPos);
                 color *= GetHeightTint(input.bladeMask);
                 color = ApplyTerrainBlend(color, input.worldPos);
+                color *= GetGrassShadowNoiseAttenuation(input.shadowWorldPos);
 
                 float3 normalWS = normalize(input.normalWS);
                 float3 lighting = 0.0;

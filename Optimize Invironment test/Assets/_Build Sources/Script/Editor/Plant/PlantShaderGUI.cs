@@ -9,6 +9,9 @@ public sealed class PlantShaderGUI : ShaderGUI
 {
     private static bool s_ShowCommon = true;
     private static bool s_ShowGrassShape = true;
+    private static bool s_ShowDistanceBlur = true;
+    private static bool s_ShowTransparentBlur = true;
+    private static bool s_ShowGrassShadowNoise = true;
     private static bool s_ShowLighting = true;
     private static bool s_ShowWindShape = true;
     private static bool s_ShowWindTexture = true;
@@ -47,6 +50,12 @@ public sealed class PlantShaderGUI : ShaderGUI
         MaterialProperty grassDistanceBlurOpacity = Find("_GrassDistanceBlurOpacity", properties);
         MaterialProperty grassDistanceBlurBrightness = Find("_GrassDistanceBlurBrightness", properties);
         MaterialProperty grassDistanceBlurCutoffShift = Find("_GrassDistanceBlurCutoffShift", properties);
+        MaterialProperty enableGrassShadowNoise = Find("_EnableGrassShadowNoise", properties);
+        MaterialProperty grassShadowNoiseTex = Find("_GrassShadowNoiseTex", properties);
+        MaterialProperty grassShadowNoiseStrength = Find("_GrassShadowNoiseStrength", properties);
+        MaterialProperty grassShadowNoiseContrast = Find("_GrassShadowNoiseContrast", properties);
+        MaterialProperty grassShadowNoiseScale = Find("_GrassShadowNoiseScale", properties);
+        MaterialProperty grassShadowNoiseScrollSpeed = Find("_GrassShadowNoiseScrollSpeed", properties);
 
         MaterialProperty enableWaveShape = Find("_EnableWaveShape", properties);
         MaterialProperty waveFrequency = Find("_WaveFrequency", properties);
@@ -97,7 +106,13 @@ public sealed class PlantShaderGUI : ShaderGUI
             grassDistanceBlurRadius,
             grassDistanceBlurOpacity,
             grassDistanceBlurBrightness,
-            grassDistanceBlurCutoffShift);
+            grassDistanceBlurCutoffShift,
+            enableGrassShadowNoise,
+            grassShadowNoiseTex,
+            grassShadowNoiseStrength,
+            grassShadowNoiseContrast,
+            grassShadowNoiseScale,
+            grassShadowNoiseScrollSpeed);
         SyncGrassTransparentBlurState(materialEditor.targets, enableGrassDistanceBlur, enableGrassTransparentBlurPath);
         DrawLighting(
             materialEditor,
@@ -211,7 +226,13 @@ public sealed class PlantShaderGUI : ShaderGUI
         MaterialProperty grassDistanceBlurRadius,
         MaterialProperty grassDistanceBlurOpacity,
         MaterialProperty grassDistanceBlurBrightness,
-        MaterialProperty grassDistanceBlurCutoffShift)
+        MaterialProperty grassDistanceBlurCutoffShift,
+        MaterialProperty enableGrassShadowNoise,
+        MaterialProperty grassShadowNoiseTex,
+        MaterialProperty grassShadowNoiseStrength,
+        MaterialProperty grassShadowNoiseContrast,
+        MaterialProperty grassShadowNoiseScale,
+        MaterialProperty grassShadowNoiseScrollSpeed)
     {
         bool isEnabled = DrawToggleFoldoutHeader(
             ref foldout,
@@ -226,36 +247,82 @@ public sealed class PlantShaderGUI : ShaderGUI
                 MakeLabel("Tip Scale", "He so scale ngang tai ngon. Gia tri 1 giu nguyen form goc, lon hon 1 se mo rong dan len phan ngon."));
             EditorGUI.EndDisabledGroup();
             EditorGUILayout.Space(2);
-            materialEditor.ShaderProperty(
+            EditorGUI.indentLevel++;
+            bool blurEnabled = DrawToggleFoldoutHeader(
+                ref s_ShowDistanceBlur,
                 enableGrassDistanceBlur,
                 MakeLabel("Distance Blur", "Lam texture grass bi nhoe dan khi ra xa camera."));
+            if (s_ShowDistanceBlur)
+            {
+                EditorGUI.indentLevel++;
+                EditorGUI.BeginDisabledGroup(!blurEnabled);
+                materialEditor.ShaderProperty(
+                    grassDistanceBlurStart,
+                    MakeLabel("Blur Start", "Khoang cach bat dau xuat hien nhoe."));
+                materialEditor.ShaderProperty(
+                    grassDistanceBlurEnd,
+                    MakeLabel("Blur End", "Khoang cach dat muc nhoe toi da."));
+                materialEditor.ShaderProperty(
+                    grassDistanceBlurRadius,
+                    MakeLabel("Blur Radius", "Ban kinh sample texture de tao cam giac bi boi nhoe."));
+                materialEditor.ShaderProperty(
+                    grassDistanceBlurOpacity,
+                    MakeLabel("Blur Opacity", "Do day alpha cua vung smear. Giam xuong de vung blur trong va min hon."));
+                materialEditor.ShaderProperty(
+                    grassDistanceBlurBrightness,
+                    MakeLabel("Blur Brightness", "Tang do sang cua vung smear de no khong bi nap thanh mang toi."));
+                materialEditor.ShaderProperty(
+                    grassDistanceBlurCutoffShift,
+                    MakeLabel("Edge Softness", "Noi long alpha cutoff khi xa camera de mep grass mem hon."));
+                EditorGUI.EndDisabledGroup();
 
-            bool blurEnabled = enableGrassDistanceBlur.floatValue > 0.5f;
-            EditorGUI.indentLevel++;
-            EditorGUI.BeginDisabledGroup(!blurEnabled);
-            materialEditor.ShaderProperty(
-                enableGrassTransparentBlurPath,
-                MakeLabel("Transparent Blur Path", "Bat path dither/transparent rieng cho blur xa. Chi material nay moi doi render state."));
-            materialEditor.ShaderProperty(
-                grassDistanceBlurStart,
-                MakeLabel("Blur Start", "Khoang cach bat dau xuat hien nhoe."));
-            materialEditor.ShaderProperty(
-                grassDistanceBlurEnd,
-                MakeLabel("Blur End", "Khoang cach dat muc nhoe toi da."));
-            materialEditor.ShaderProperty(
-                grassDistanceBlurRadius,
-                MakeLabel("Blur Radius", "Ban kinh sample texture de tao cam giac bi boi nhoe."));
-            materialEditor.ShaderProperty(
-                grassDistanceBlurOpacity,
-                MakeLabel("Blur Opacity", "Do day alpha cua vung smear. Giam xuong de vung blur trong va min hon."));
-            materialEditor.ShaderProperty(
-                grassDistanceBlurBrightness,
-                MakeLabel("Blur Brightness", "Tang do sang cua vung smear de no khong bi nap thanh mang toi."));
-            materialEditor.ShaderProperty(
-                grassDistanceBlurCutoffShift,
-                MakeLabel("Edge Softness", "Noi long alpha cutoff khi xa camera de mep grass mem hon."));
-            EditorGUI.EndDisabledGroup();
-            EditorGUI.indentLevel--;
+                EditorGUILayout.Space(2);
+                bool transparentBlurEnabled = DrawToggleFoldoutHeader(
+                    ref s_ShowTransparentBlur,
+                    enableGrassTransparentBlurPath,
+                    MakeLabel("Transparent Blur", "Bat path dither/transparent rieng cho blur xa. Chi material nay moi doi render state."));
+                if (s_ShowTransparentBlur)
+                {
+                    EditorGUI.indentLevel++;
+                    EditorGUI.BeginDisabledGroup(!blurEnabled || !transparentBlurEnabled);
+                    EditorGUILayout.HelpBox(
+                        "Path nay doi sang blur trong suot o xa de giam cam giac card grass va doi render state cua material.",
+                        MessageType.None);
+                    EditorGUI.EndDisabledGroup();
+                    EditorGUI.indentLevel--;
+                }
+
+                EditorGUI.indentLevel--;
+            }
+
+            EditorGUILayout.Space(2);
+            bool shadowNoiseEnabled = DrawToggleFoldoutHeader(
+                ref s_ShowGrassShadowNoise,
+                enableGrassShadowNoise,
+                MakeLabel("Shadow Noise", "Gia lap cac mang bong chay tren mat grass bang noise world-space."));
+            if (s_ShowGrassShadowNoise)
+            {
+                EditorGUI.indentLevel++;
+                EditorGUI.BeginDisabledGroup(!shadowNoiseEnabled);
+                materialEditor.TexturePropertySingleLine(
+                    MakeLabel("Shadow Texture", "Noise world-space dung de ve cac mang toi chay tren mat co."),
+                    grassShadowNoiseTex);
+                materialEditor.ShaderProperty(
+                    grassShadowNoiseStrength,
+                    MakeLabel("Shadow Strength", "Muc do shadow-noise lam toi mau co."));
+                materialEditor.ShaderProperty(
+                    grassShadowNoiseContrast,
+                    MakeLabel("Shadow Contrast", "Do net giua vung shadow va vung sang cua noise."));
+                materialEditor.ShaderProperty(
+                    grassShadowNoiseScale,
+                    MakeLabel("Shadow Scale", "Do lon cua pattern shadow trong world-space XZ."));
+                materialEditor.ShaderProperty(
+                    grassShadowNoiseScrollSpeed,
+                    MakeLabel("Shadow Scroll Speed", "Toc do shadow-noise troi theo huong gio."));
+                EditorGUI.EndDisabledGroup();
+                EditorGUI.indentLevel--;
+            }
+
             EditorGUI.indentLevel--;
             EditorGUILayout.Space(2);
         }

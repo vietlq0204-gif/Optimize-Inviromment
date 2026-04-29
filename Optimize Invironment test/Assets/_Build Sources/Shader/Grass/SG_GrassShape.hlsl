@@ -150,6 +150,37 @@ half4 SampleGrassBaseMap(float2 uv, float blur01)
     return lerp(center, blurred, blur01);
 }
 
+float2 GetGrassShadowNoiseUV(float3 worldPos)
+{
+    float2 dir = normalize(_WindDirection.xy + float2(0.0001, 0.0001));
+    float2 perp = float2(-dir.y, dir.x);
+    float along = dot(worldPos.xz, dir);
+    float across = dot(worldPos.xz, perp);
+    float2 scale = max(_GrassShadowNoiseScale.xy, float2(0.001, 0.001));
+    float2 uv = float2(along / scale.x, across / scale.y);
+    uv.x -= _Time.y * _GrassShadowNoiseScrollSpeed * GetWindLean01();
+    return uv;
+}
+
+float GetGrassShadowNoiseAttenuation(float3 worldPos)
+{
+    if (GetToggle01(_EnableGrassShadowNoise) < 0.5)
+    {
+        return 1.0;
+    }
+
+    float strength = saturate(_GrassShadowNoiseStrength);
+    if (strength <= 0.0001)
+    {
+        return 1.0;
+    }
+
+    float raw = SAMPLE_TEXTURE2D(_GrassShadowNoiseTex, sampler_GrassShadowNoiseTex, GetGrassShadowNoiseUV(worldPos)).r;
+    float contrast = max(_GrassShadowNoiseContrast, 0.001);
+    float mask = saturate((raw - 0.5) * contrast + 0.5);
+    return 1.0 - ((1.0 - mask) * strength);
+}
+
 float GetGrassBlurredCutoff(float blur01, float baseCutoff)
 {
     float opacityCompensation = (1.0 - saturate(_GrassDistanceBlurOpacity)) * 0.18;

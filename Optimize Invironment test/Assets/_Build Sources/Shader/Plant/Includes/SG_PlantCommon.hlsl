@@ -5,6 +5,8 @@ TEXTURE2D(_BaseMap);
 SAMPLER(sampler_BaseMap);
 TEXTURE2D(_WindTexture);
 SAMPLER(sampler_WindTexture);
+TEXTURE2D(_GrassShadowNoiseTex);
+SAMPLER(sampler_GrassShadowNoiseTex);
 
 CBUFFER_START(UnityPerMaterial)
     float4 _BaseMap_ST;
@@ -33,6 +35,11 @@ CBUFFER_START(UnityPerMaterial)
     float _GrassDistanceBlurOpacity;
     float _GrassDistanceBlurBrightness;
     float _GrassDistanceBlurCutoffShift;
+    float _EnableGrassShadowNoise;
+    float _GrassShadowNoiseStrength;
+    float _GrassShadowNoiseContrast;
+    float4 _GrassShadowNoiseScale;
+    float _GrassShadowNoiseScrollSpeed;
     float _EnableWaveShape;
     float _WaveFrequency;
     float _WaveSpacingVariation;
