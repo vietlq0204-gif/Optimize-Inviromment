@@ -1,5 +1,6 @@
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 /// <summary>
 /// Custom material inspector for the grass wind shader.
@@ -38,6 +39,14 @@ public sealed class PlantShaderGUI : ShaderGUI
         MaterialProperty cameraBendStrength = Find("_CameraBendStrength", properties);
         MaterialProperty enableGrassConeShape = Find("_EnableGrassConeShape", properties);
         MaterialProperty grassConeTipScale = Find("_GrassConeTipScale", properties);
+        MaterialProperty enableGrassDistanceBlur = Find("_EnableGrassDistanceBlur", properties);
+        MaterialProperty enableGrassTransparentBlurPath = Find("_EnableGrassTransparentBlurPath", properties);
+        MaterialProperty grassDistanceBlurStart = Find("_GrassDistanceBlurStart", properties);
+        MaterialProperty grassDistanceBlurEnd = Find("_GrassDistanceBlurEnd", properties);
+        MaterialProperty grassDistanceBlurRadius = Find("_GrassDistanceBlurRadius", properties);
+        MaterialProperty grassDistanceBlurOpacity = Find("_GrassDistanceBlurOpacity", properties);
+        MaterialProperty grassDistanceBlurBrightness = Find("_GrassDistanceBlurBrightness", properties);
+        MaterialProperty grassDistanceBlurCutoffShift = Find("_GrassDistanceBlurCutoffShift", properties);
 
         MaterialProperty enableWaveShape = Find("_EnableWaveShape", properties);
         MaterialProperty waveFrequency = Find("_WaveFrequency", properties);
@@ -76,7 +85,20 @@ public sealed class PlantShaderGUI : ShaderGUI
         MaterialProperty interactionRecoveryNoiseScale = Find("_InteractionRecoveryNoiseScale", properties);
 
         DrawCommon(materialEditor, ref s_ShowCommon, baseMap, baseColor, cutoff, windTexture, windSpeed, windDirection, cameraBendStrength);
-        DrawGrassShape(materialEditor, ref s_ShowGrassShape, enableGrassConeShape, grassConeTipScale);
+        DrawGrassShape(
+            materialEditor,
+            ref s_ShowGrassShape,
+            enableGrassConeShape,
+            grassConeTipScale,
+            enableGrassDistanceBlur,
+            enableGrassTransparentBlurPath,
+            grassDistanceBlurStart,
+            grassDistanceBlurEnd,
+            grassDistanceBlurRadius,
+            grassDistanceBlurOpacity,
+            grassDistanceBlurBrightness,
+            grassDistanceBlurCutoffShift);
+        SyncGrassTransparentBlurState(materialEditor.targets, enableGrassDistanceBlur, enableGrassTransparentBlurPath);
         DrawLighting(
             materialEditor,
             ref s_ShowLighting,
@@ -181,7 +203,15 @@ public sealed class PlantShaderGUI : ShaderGUI
         MaterialEditor materialEditor,
         ref bool foldout,
         MaterialProperty enableGrassConeShape,
-        MaterialProperty grassConeTipScale)
+        MaterialProperty grassConeTipScale,
+        MaterialProperty enableGrassDistanceBlur,
+        MaterialProperty enableGrassTransparentBlurPath,
+        MaterialProperty grassDistanceBlurStart,
+        MaterialProperty grassDistanceBlurEnd,
+        MaterialProperty grassDistanceBlurRadius,
+        MaterialProperty grassDistanceBlurOpacity,
+        MaterialProperty grassDistanceBlurBrightness,
+        MaterialProperty grassDistanceBlurCutoffShift)
     {
         bool isEnabled = DrawToggleFoldoutHeader(
             ref foldout,
@@ -195,8 +225,62 @@ public sealed class PlantShaderGUI : ShaderGUI
                 grassConeTipScale,
                 MakeLabel("Tip Scale", "He so scale ngang tai ngon. Gia tri 1 giu nguyen form goc, lon hon 1 se mo rong dan len phan ngon."));
             EditorGUI.EndDisabledGroup();
+            EditorGUILayout.Space(2);
+            materialEditor.ShaderProperty(
+                enableGrassDistanceBlur,
+                MakeLabel("Distance Blur", "Lam texture grass bi nhoe dan khi ra xa camera."));
+
+            bool blurEnabled = enableGrassDistanceBlur.floatValue > 0.5f;
+            EditorGUI.indentLevel++;
+            EditorGUI.BeginDisabledGroup(!blurEnabled);
+            materialEditor.ShaderProperty(
+                enableGrassTransparentBlurPath,
+                MakeLabel("Transparent Blur Path", "Bat path dither/transparent rieng cho blur xa. Chi material nay moi doi render state."));
+            materialEditor.ShaderProperty(
+                grassDistanceBlurStart,
+                MakeLabel("Blur Start", "Khoang cach bat dau xuat hien nhoe."));
+            materialEditor.ShaderProperty(
+                grassDistanceBlurEnd,
+                MakeLabel("Blur End", "Khoang cach dat muc nhoe toi da."));
+            materialEditor.ShaderProperty(
+                grassDistanceBlurRadius,
+                MakeLabel("Blur Radius", "Ban kinh sample texture de tao cam giac bi boi nhoe."));
+            materialEditor.ShaderProperty(
+                grassDistanceBlurOpacity,
+                MakeLabel("Blur Opacity", "Do day alpha cua vung smear. Giam xuong de vung blur trong va min hon."));
+            materialEditor.ShaderProperty(
+                grassDistanceBlurBrightness,
+                MakeLabel("Blur Brightness", "Tang do sang cua vung smear de no khong bi nap thanh mang toi."));
+            materialEditor.ShaderProperty(
+                grassDistanceBlurCutoffShift,
+                MakeLabel("Edge Softness", "Noi long alpha cutoff khi xa camera de mep grass mem hon."));
+            EditorGUI.EndDisabledGroup();
+            EditorGUI.indentLevel--;
             EditorGUI.indentLevel--;
             EditorGUILayout.Space(2);
+        }
+    }
+
+    private static void SyncGrassTransparentBlurState(
+        Object[] targets,
+        MaterialProperty enableGrassDistanceBlur,
+        MaterialProperty enableGrassTransparentBlurPath)
+    {
+        bool useTransparentBlurPath = enableGrassDistanceBlur.floatValue > 0.5f &&
+                                      enableGrassTransparentBlurPath.floatValue > 0.5f;
+
+        foreach (Object target in targets)
+        {
+            if (target is not Material material)
+            {
+                continue;
+            }
+
+            material.SetFloat("_PlantSrcBlend", useTransparentBlurPath ? (float)BlendMode.SrcAlpha : (float)BlendMode.One);
+            material.SetFloat("_PlantDstBlend", useTransparentBlurPath ? (float)BlendMode.OneMinusSrcAlpha : (float)BlendMode.Zero);
+            material.SetFloat("_PlantZWrite", useTransparentBlurPath ? 0f : 1f);
+            material.renderQueue = useTransparentBlurPath ? (int)RenderQueue.Transparent : -1;
+            material.SetOverrideTag("RenderType", useTransparentBlurPath ? "Transparent" : string.Empty);
         }
     }
 

@@ -23,6 +23,17 @@ Shader "Custom/Vit/Plant_URP"
         _CameraBendStrength ("Camera Bend Strength", Range(0,1)) = 0.15
         [Toggle] _EnableGrassConeShape ("Enable Grass Cone Shape", Float) = 0
         _GrassConeTipScale ("Grass Cone Tip Scale", Range(0.25,4)) = 1.25
+        [Toggle] _EnableGrassDistanceBlur ("Enable Grass Distance Blur", Float) = 0
+        [Toggle] _EnableGrassTransparentBlurPath ("Enable Grass Transparent Blur Path", Float) = 0
+        _GrassDistanceBlurStart ("Grass Distance Blur Start", Range(0,200)) = 18
+        _GrassDistanceBlurEnd ("Grass Distance Blur End", Range(0.1,300)) = 45
+        _GrassDistanceBlurRadius ("Grass Distance Blur Radius", Range(0,8)) = 2
+        _GrassDistanceBlurOpacity ("Grass Distance Blur Opacity", Range(0.1,1)) = 0.68
+        _GrassDistanceBlurBrightness ("Grass Distance Blur Brightness", Range(0,1)) = 0.35
+        _GrassDistanceBlurCutoffShift ("Grass Distance Blur Cutoff Shift", Range(0,0.5)) = 0.12
+        [HideInInspector] _PlantSrcBlend ("Plant Src Blend", Float) = 1
+        [HideInInspector] _PlantDstBlend ("Plant Dst Blend", Float) = 0
+        [HideInInspector] _PlantZWrite ("Plant ZWrite", Float) = 1
 
         [Toggle] _EnableWaveShape ("Enable Wave Shape", Float) = 1
         [HideInInspector] _WaveFrequency ("Wave Frequency", Range(0.1,12)) = 1.2
@@ -105,6 +116,7 @@ Shader "Custom/Vit/Plant_URP"
         {
             float4 positionCS : SV_POSITION;
             float2 uv : TEXCOORD0;
+            float3 worldPos : TEXCOORD1;
             UNITY_VERTEX_INPUT_INSTANCE_ID
             UNITY_VERTEX_OUTPUT_STEREO
         };
@@ -114,8 +126,20 @@ Shader "Custom/Vit/Plant_URP"
             float4 positionCS : SV_POSITION;
             float2 uv : TEXCOORD0;
             float3 normalWS : TEXCOORD1;
+            float3 worldPos : TEXCOORD2;
             UNITY_VERTEX_INPUT_INSTANCE_ID
             UNITY_VERTEX_OUTPUT_STEREO
+        };
+
+        struct PlantSurfaceSample
+        {
+            half4 baseTex;
+            half4 blurTex;
+            half baseAlpha;
+            half blurAlpha;
+            half solidAlpha;
+            half transparentAlpha;
+            float blur01;
         };
 
         float3 GetShapedPlantObjectPos(float3 positionOS, float2 uv)
@@ -133,11 +157,37 @@ Shader "Custom/Vit/Plant_URP"
             return ApplyPlantMotion(baseWorldPos, normalWS, bladeMask);
         }
 
-        void AlphaClipPlant(float2 uv)
+        PlantSurfaceSample SamplePlantSurface(float2 uv, float3 worldPos)
         {
-            half4 tex = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, uv);
-            half alpha = tex.a * _BaseColor.a;
-            clip(alpha - _Cutoff);
+            PlantSurfaceSample sample;
+            sample.blur01 = GetGrassDistanceBlur01(worldPos);
+            sample.baseTex = SampleGrassSourceBaseMap(uv);
+            sample.blurTex = SampleGrassBaseMap(uv, sample.blur01);
+            sample.baseAlpha = sample.baseTex.a * _BaseColor.a;
+            sample.blurAlpha = sample.blurTex.a * _BaseColor.a;
+            sample.solidAlpha = step(_Cutoff, sample.baseAlpha) * GetGrassSolidFade01(sample.blur01);
+            sample.transparentAlpha = GetGrassTransparentAlpha(sample.blurAlpha, sample.blur01);
+            return sample;
+        }
+
+        void AlphaClipPlant(float2 uv, float3 worldPos)
+        {
+            PlantSurfaceSample sample = SamplePlantSurface(uv, worldPos);
+            float useTransparentBlurPath = GetToggle01(_EnableGrassDistanceBlur) * GetToggle01(_EnableGrassTransparentBlurPath);
+            if (useTransparentBlurPath > 0.5)
+            {
+                clip(sample.baseAlpha - _Cutoff);
+
+                float solidFade = GetGrassSolidFade01(sample.blur01);
+                if (solidFade < 0.9999)
+                {
+                    clip(solidFade - GetGrassDitherNoise(worldPos, uv));
+                }
+
+                return;
+            }
+
+            clip(sample.blurAlpha - GetGrassBlurredCutoff(sample.blur01, _Cutoff));
         }
 
         PlantDepthVaryings DepthOnlyVertex(PlantDepthAttributes input)
@@ -150,6 +200,7 @@ Shader "Custom/Vit/Plant_URP"
             float3 worldPos = GetAnimatedPlantWorldPos(input.positionOS, input.normalOS, input.uv);
             output.positionCS = TransformWorldToHClip(worldPos);
             output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
+            output.worldPos = worldPos;
             return output;
         }
 
@@ -158,7 +209,7 @@ Shader "Custom/Vit/Plant_URP"
             UNITY_SETUP_INSTANCE_ID(input);
             UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
-            AlphaClipPlant(input.uv);
+            AlphaClipPlant(input.uv, input.worldPos);
             return input.positionCS.z;
         }
 
@@ -173,6 +224,7 @@ Shader "Custom/Vit/Plant_URP"
             output.positionCS = TransformWorldToHClip(worldPos);
             output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
             output.normalWS = TransformObjectToWorldNormal(input.normalOS);
+            output.worldPos = worldPos;
             return output;
         }
 
@@ -187,7 +239,7 @@ Shader "Custom/Vit/Plant_URP"
             UNITY_SETUP_INSTANCE_ID(input);
             UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
-            AlphaClipPlant(input.uv);
+            AlphaClipPlant(input.uv, input.worldPos);
 
         #if defined(_GBUFFER_NORMALS_OCT)
             float3 normalWS = normalize(input.normalWS);
@@ -215,7 +267,8 @@ Shader "Custom/Vit/Plant_URP"
             }
 
             Cull Off
-            ZWrite On
+            ZWrite [_PlantZWrite]
+            Blend [_PlantSrcBlend] [_PlantDstBlend]
             AlphaToMask Off
 
             HLSLPROGRAM
@@ -288,11 +341,30 @@ Shader "Custom/Vit/Plant_URP"
             {
                 UNITY_SETUP_INSTANCE_ID(input);
 
-                half4 tex = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv);
-                half alpha = tex.a * _BaseColor.a;
-                clip(alpha - _Cutoff);
+                PlantSurfaceSample surface = SamplePlantSurface(input.uv, input.worldPos);
+                float useTransparentBlurPath = GetToggle01(_EnableGrassDistanceBlur) * GetToggle01(_EnableGrassTransparentBlurPath);
 
-                float3 color = tex.rgb * _BaseColor.rgb;
+                half alpha;
+                float3 color;
+                if (useTransparentBlurPath > 0.5)
+                {
+                    alpha = saturate(surface.solidAlpha + surface.transparentAlpha);
+                    clip(max(surface.baseAlpha - _Cutoff, surface.transparentAlpha - 0.001h));
+
+                    float baseWeight = surface.solidAlpha;
+                    float blurWeight = surface.transparentAlpha;
+                    float weightSum = max(baseWeight + blurWeight, 0.0001);
+                    float3 baseColor = surface.baseTex.rgb * _BaseColor.rgb;
+                    float3 blurColor = surface.blurTex.rgb * _BaseColor.rgb;
+                    color = ((baseColor * baseWeight) + (blurColor * blurWeight)) / weightSum;
+                }
+                else
+                {
+                    alpha = surface.blurAlpha;
+                    clip(alpha - GetGrassBlurredCutoff(surface.blur01, _Cutoff));
+                    color = surface.blurTex.rgb * _BaseColor.rgb;
+                }
+
                 color *= GetDistanceTint(input.worldPos);
                 color *= GetHeightTint(input.bladeMask);
                 color = ApplyTerrainBlend(color, input.worldPos);
@@ -448,6 +520,7 @@ Shader "Custom/Vit/Plant_URP"
             struct ShadowVaryings
             {
                 float2 uv : TEXCOORD0;
+                float3 worldPos : TEXCOORD1;
                 float4 positionCS : SV_POSITION;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
@@ -478,6 +551,13 @@ Shader "Custom/Vit/Plant_URP"
                 UNITY_TRANSFER_INSTANCE_ID(input, output);
 
                 output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
+                float bladeMask = GetBladeMaskFromUV(input.uv.y);
+                float3 shapedPositionOS = GetShapedPlantObjectPos(input.positionOS.xyz, input.uv);
+                float3 baseWorldPos = TransformObjectToWorld(shapedPositionOS);
+                float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
+                float3 worldPos = ApplyPlantMotion(baseWorldPos, normalWS, bladeMask);
+
+                output.worldPos = worldPos;
                 output.positionCS = GetShadowPositionHClip(input);
                 return output;
             }
@@ -486,9 +566,7 @@ Shader "Custom/Vit/Plant_URP"
             {
                 UNITY_SETUP_INSTANCE_ID(input);
 
-                half4 tex = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv);
-                half alpha = tex.a * _BaseColor.a;
-                clip(alpha - _Cutoff);
+                AlphaClipPlant(input.uv, input.worldPos);
                 return 0;
             }
             ENDHLSL

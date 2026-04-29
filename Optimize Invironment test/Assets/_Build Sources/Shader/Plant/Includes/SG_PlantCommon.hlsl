@@ -25,6 +25,14 @@ CBUFFER_START(UnityPerMaterial)
     float _CameraBendStrength;
     float _EnableGrassConeShape;
     float _GrassConeTipScale;
+    float _EnableGrassDistanceBlur;
+    float _EnableGrassTransparentBlurPath;
+    float _GrassDistanceBlurStart;
+    float _GrassDistanceBlurEnd;
+    float _GrassDistanceBlurRadius;
+    float _GrassDistanceBlurOpacity;
+    float _GrassDistanceBlurBrightness;
+    float _GrassDistanceBlurCutoffShift;
     float _EnableWaveShape;
     float _WaveFrequency;
     float _WaveSpacingVariation;
