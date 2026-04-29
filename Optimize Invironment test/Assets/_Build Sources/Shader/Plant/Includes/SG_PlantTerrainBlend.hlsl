@@ -28,6 +28,11 @@ float3 GetTerrainTint(float3 worldPos)
 
 float3 ApplyTerrainBlend(float3 color, float3 worldPos)
 {
+    if (GetToggle01(_EnableTerrain) < 0.5)
+    {
+        return color;
+    }
+
     if (_UseTerrainColor <= 0.5 && _GrassTerrainColorMapParams.x <= 0.5)
     {
         return color;

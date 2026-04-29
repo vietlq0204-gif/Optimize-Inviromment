@@ -5,7 +5,9 @@ Shader "Custom/Vit/Plant_URP"
         [MainTexture] _BaseMap ("Base Map", 2D) = "white" {}
         [HideInInspector] _MainTex ("MainTex", 2D) = "white" {}
         [MainColor] _BaseColor ("Base Color", Color) = (1,0.9510489,0,1)
+        [Toggle] _EnableColor ("Enable Color", Float) = 1
         _Cutoff ("Alpha Cutoff", Range(0,1)) = 0.5
+        [Toggle] _EnableLighting ("Enable Lighting", Float) = 1
         [Toggle] _ReceiveShadows ("Receive Shadows", Float) = 1
         _ShadowStrength ("Shadow Strength", Range(0,1)) = 1
         _ShadowFloor ("Shadow Floor", Range(0,1)) = 0.15
@@ -17,10 +19,10 @@ Shader "Custom/Vit/Plant_URP"
         _AmbientIntensity ("Ambient Intensity", Range(0,4)) = 0.5
         [Toggle] _TwoSidedLighting ("Two-Sided Lighting", Float) = 1
 
-        [NoScaleOffset] _WindTexture ("Wind Texture", 2D) = "gray" {}
-        _WindSpeed ("Grass Lean", Range(0,10)) = 10
+        [Toggle] _EnableWind ("Enable Wind", Float) = 1
+        [NoScaleOffset] _WindTexture ("Wind Noise", 2D) = "gray" {}
+        _WindSpeed ("Lean", Range(0,10)) = 10
         _WindDirection ("Wind Direction XZ", Vector) = (0.4472136,0.8944272,0,0)
-        _CameraBendStrength ("Camera Bend Strength", Range(0,1)) = 0.15
         [Toggle] _EnableGrassConeShape ("Enable Grass Cone Shape", Float) = 0
         _GrassConeTipScale ("Grass Cone Tip Scale", Range(0.25,4)) = 1.25
         [Toggle] _EnableGrassDistanceBlur ("Enable Grass Distance Blur", Float) = 0
@@ -31,17 +33,14 @@ Shader "Custom/Vit/Plant_URP"
         _GrassDistanceBlurOpacity ("Grass Distance Blur Opacity", Range(0.1,1)) = 0.68
         _GrassDistanceBlurBrightness ("Grass Distance Blur Brightness", Range(0,1)) = 0.35
         _GrassDistanceBlurCutoffShift ("Grass Distance Blur Cutoff Shift", Range(0,0.5)) = 0.12
-        [Toggle] _EnableGrassShadowNoise ("Enable Grass Shadow Noise", Float) = 0
-        [NoScaleOffset] _GrassShadowNoiseTex ("Grass Shadow Noise", 2D) = "white" {}
-        _GrassShadowNoiseStrength ("Grass Shadow Noise Strength", Range(0,1)) = 0
-        _GrassShadowNoiseContrast ("Grass Shadow Noise Contrast", Range(0.1,4)) = 1.5
-        _GrassShadowNoiseScale ("Grass Shadow Noise Scale", Vector) = (24,18,0,0)
-        _GrassShadowNoiseScrollSpeed ("Grass Shadow Noise Scroll Speed", Range(0,5)) = 0.08
+        [Toggle] _EnableGrassShadowNoise ("Enable Wind Noise", Float) = 0
+        _GrassShadowNoiseStrength ("Wind Noise Shadow Strength", Range(0,1)) = 0
+        _GrassShadowNoiseContrast ("Wind Noise Shadow Contrast", Range(0.1,4)) = 1.5
         [HideInInspector] _PlantSrcBlend ("Plant Src Blend", Float) = 1
         [HideInInspector] _PlantDstBlend ("Plant Dst Blend", Float) = 0
         [HideInInspector] _PlantZWrite ("Plant ZWrite", Float) = 1
 
-        [Toggle] _EnableWaveShape ("Enable Wave Shape", Float) = 1
+        [Toggle] _EnableWaveShape ("Enable Wind Vibrate", Float) = 1
         [HideInInspector] _WaveFrequency ("Wave Frequency", Range(0.1,12)) = 1.2
         [HideInInspector] _WaveSpacingVariation ("Wave Spacing Variation", Range(0,2)) = 1
         [HideInInspector] _WaveSpeed ("Wave Speed", Range(0,8)) = 4
@@ -50,11 +49,11 @@ Shader "Custom/Vit/Plant_URP"
         [HideInInspector] _WaveTipInfluence ("Tip Wave", Range(0,1)) = 1
         [HideInInspector] _WaveLateralInfluence ("Lateral Wave", Range(0,1)) = 1
 
-        [HideInInspector] _WindTextureScale ("Texture Scale", Vector) = (60,50,0,0)
-        [HideInInspector] _WindTextureScrollSpeed ("Texture Scroll Speed", Range(0,5)) = 0.15
-        [HideInInspector] _WindTextureContrast ("Texture Contrast", Vector) = (0.2,0.8,0,0)
-        [HideInInspector] _WindTextureInfluence ("Texture Influence", Range(0,1)) = 0.8
-        [HideInInspector] _WindTextureWaveInfluence ("Texture To Wave", Range(0,1)) = 0
+        [HideInInspector] _WindTextureScale ("Wind Noise Scale", Vector) = (60,50,0,0)
+        [HideInInspector] _WindTextureScrollSpeed ("Wind Noise Scroll Speed", Range(0,5)) = 0.15
+        [HideInInspector] _WindTextureContrast ("Wind Noise Contrast", Vector) = (0.2,0.8,0,0)
+        [HideInInspector] _WindTextureInfluence ("Noise To Lean", Range(0,1)) = 0.8
+        [HideInInspector] _WindTextureWaveInfluence ("Noise To Vibrate", Range(0,1)) = 0
 
         [HideInInspector] _NearColor ("Near Color", Color) = (0.6595166,0.7132074,0,1)
         [HideInInspector] _FarColor ("Far Color", Color) = (0.8032724,1,0,1)
@@ -62,6 +61,7 @@ Shader "Custom/Vit/Plant_URP"
         [HideInInspector] _BottomColor ("Bottom Color", Color) = (1,1,1,1)
         [HideInInspector] _HeightBlend ("Height Blend", Range(0,20)) = 4.5
 
+        [Toggle] _EnableTerrain ("Enable Terrain", Float) = 1
         [HideInInspector] _UseTerrainColor ("Use Terrain Color", Float) = 1
         [HideInInspector] _TerrainColor ("Terrain Color", Color) = (0.9887863,1,0,1)
         [HideInInspector] _TerrainBlendStrength ("Terrain Blend Strength", Range(0,1)) = 1
@@ -99,7 +99,7 @@ Shader "Custom/Vit/Plant_URP"
         #include "Includes/SG_PlantTerrainBlend.hlsl"
         #include "Includes/SG_PlantLighting.hlsl"
 
-        float3 ApplyPlantMotion(float3 worldPos, float3 normalWS, float bladeMask)
+        float3 ApplyPlantMotion(float3 worldPos, float bladeMask)
         {
             float3 animatedWorldPos = ApplyWind(worldPos, bladeMask);
             if (UseDetailFallback() <= 0.5)
@@ -107,7 +107,7 @@ Shader "Custom/Vit/Plant_URP"
                 animatedWorldPos = ApplyInteraction(animatedWorldPos, bladeMask);
             }
 
-            return ApplyCameraCompensation(animatedWorldPos, normalWS, bladeMask);
+            return animatedWorldPos;
         }
 
         struct PlantDepthAttributes
@@ -154,13 +154,12 @@ Shader "Custom/Vit/Plant_URP"
             return ApplyGrassConeShapeOS(positionOS, bladeMask);
         }
 
-        float3 GetAnimatedPlantWorldPos(float4 positionOS, float3 normalOS, float2 uv)
+        float3 GetAnimatedPlantWorldPos(float4 positionOS, float2 uv)
         {
             float bladeMask = GetBladeMaskFromUV(uv.y);
             float3 shapedPositionOS = GetShapedPlantObjectPos(positionOS.xyz, uv);
             float3 baseWorldPos = TransformObjectToWorld(shapedPositionOS);
-            float3 normalWS = TransformObjectToWorldNormal(normalOS);
-            return ApplyPlantMotion(baseWorldPos, normalWS, bladeMask);
+            return ApplyPlantMotion(baseWorldPos, bladeMask);
         }
 
         PlantSurfaceSample SamplePlantSurface(float2 uv, float3 worldPos)
@@ -203,7 +202,7 @@ Shader "Custom/Vit/Plant_URP"
             UNITY_TRANSFER_INSTANCE_ID(input, output);
             UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-            float3 worldPos = GetAnimatedPlantWorldPos(input.positionOS, input.normalOS, input.uv);
+            float3 worldPos = GetAnimatedPlantWorldPos(input.positionOS, input.uv);
             output.positionCS = TransformWorldToHClip(worldPos);
             output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
             output.worldPos = worldPos;
@@ -226,7 +225,7 @@ Shader "Custom/Vit/Plant_URP"
             UNITY_TRANSFER_INSTANCE_ID(input, output);
             UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
-            float3 worldPos = GetAnimatedPlantWorldPos(input.positionOS, input.normalOS, input.uv);
+            float3 worldPos = GetAnimatedPlantWorldPos(input.positionOS, input.uv);
             output.positionCS = TransformWorldToHClip(worldPos);
             output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
             output.normalWS = TransformObjectToWorldNormal(input.normalOS);
@@ -318,7 +317,7 @@ Shader "Custom/Vit/Plant_URP"
                 float3 shapedPositionOS = GetShapedPlantObjectPos(input.positionOS.xyz, input.uv);
                 float3 baseWorldPos = TransformObjectToWorld(shapedPositionOS);
                 float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
-                float3 worldPos = ApplyPlantMotion(baseWorldPos, normalWS, bladeMask);
+                float3 worldPos = ApplyPlantMotion(baseWorldPos, bladeMask);
                 float3 normalWSNormalized = normalize(normalWS);
 
                 output.positionHCS = TransformWorldToHClip(worldPos);
@@ -354,6 +353,8 @@ Shader "Custom/Vit/Plant_URP"
 
                 half alpha;
                 float3 color;
+                float colorEnabled = ColorEnabled01();
+                float3 baseColorTint = lerp(float3(1.0, 1.0, 1.0), _BaseColor.rgb, colorEnabled);
                 if (useTransparentBlurPath > 0.5)
                 {
                     alpha = saturate(surface.solidAlpha + surface.transparentAlpha);
@@ -362,21 +363,27 @@ Shader "Custom/Vit/Plant_URP"
                     float baseWeight = surface.solidAlpha;
                     float blurWeight = surface.transparentAlpha;
                     float weightSum = max(baseWeight + blurWeight, 0.0001);
-                    float3 baseColor = surface.baseTex.rgb * _BaseColor.rgb;
-                    float3 blurColor = surface.blurTex.rgb * _BaseColor.rgb;
+                    float3 baseColor = surface.baseTex.rgb * baseColorTint;
+                    float3 blurColor = surface.blurTex.rgb * baseColorTint;
                     color = ((baseColor * baseWeight) + (blurColor * blurWeight)) / weightSum;
                 }
                 else
                 {
                     alpha = surface.blurAlpha;
                     clip(alpha - GetGrassBlurredCutoff(surface.blur01, _Cutoff));
-                    color = surface.blurTex.rgb * _BaseColor.rgb;
+                    color = surface.blurTex.rgb * baseColorTint;
                 }
 
-                color *= GetDistanceTint(input.worldPos);
-                color *= GetHeightTint(input.bladeMask);
+                color *= lerp(float3(1.0, 1.0, 1.0), GetDistanceTint(input.worldPos), colorEnabled);
+                color *= lerp(float3(1.0, 1.0, 1.0), GetHeightTint(input.bladeMask), colorEnabled);
                 color = ApplyTerrainBlend(color, input.worldPos);
                 color *= GetGrassShadowNoiseAttenuation(input.shadowWorldPos);
+
+                if (GetToggle01(_EnableLighting) < 0.5)
+                {
+                    color = MixFog(color, input.fogFactor);
+                    return half4(color, alpha);
+                }
 
                 float3 normalWS = normalize(input.normalWS);
                 float3 lighting = 0.0;
@@ -540,7 +547,7 @@ Shader "Custom/Vit/Plant_URP"
                 float3 shapedPositionOS = GetShapedPlantObjectPos(input.positionOS.xyz, input.uv);
                 float3 baseWorldPos = TransformObjectToWorld(shapedPositionOS);
                 float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
-                float3 worldPos = ApplyPlantMotion(baseWorldPos, normalWS, bladeMask);
+                float3 worldPos = ApplyPlantMotion(baseWorldPos, bladeMask);
 
             #if _CASTING_PUNCTUAL_LIGHT_SHADOW
                 float3 lightDirectionWS = normalize(_LightPosition - worldPos);
@@ -563,8 +570,7 @@ Shader "Custom/Vit/Plant_URP"
                 float bladeMask = GetBladeMaskFromUV(input.uv.y);
                 float3 shapedPositionOS = GetShapedPlantObjectPos(input.positionOS.xyz, input.uv);
                 float3 baseWorldPos = TransformObjectToWorld(shapedPositionOS);
-                float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
-                float3 worldPos = ApplyPlantMotion(baseWorldPos, normalWS, bladeMask);
+                float3 worldPos = ApplyPlantMotion(baseWorldPos, bladeMask);
 
                 output.worldPos = worldPos;
                 output.positionCS = GetShadowPositionHClip(input);

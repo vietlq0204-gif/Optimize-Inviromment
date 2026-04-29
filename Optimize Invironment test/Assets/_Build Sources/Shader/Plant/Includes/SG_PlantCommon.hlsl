@@ -5,13 +5,13 @@ TEXTURE2D(_BaseMap);
 SAMPLER(sampler_BaseMap);
 TEXTURE2D(_WindTexture);
 SAMPLER(sampler_WindTexture);
-TEXTURE2D(_GrassShadowNoiseTex);
-SAMPLER(sampler_GrassShadowNoiseTex);
 
 CBUFFER_START(UnityPerMaterial)
     float4 _BaseMap_ST;
     float4 _BaseColor;
+    float _EnableColor;
     float _Cutoff;
+    float _EnableLighting;
     float _ReceiveShadows;
     float _ShadowStrength;
     float _ShadowFloor;
@@ -22,9 +22,9 @@ CBUFFER_START(UnityPerMaterial)
     float _EnableAmbient;
     float _AmbientIntensity;
     float _TwoSidedLighting;
+    float _EnableWind;
     float _WindSpeed;
     float4 _WindDirection;
-    float _CameraBendStrength;
     float _EnableGrassConeShape;
     float _GrassConeTipScale;
     float _EnableGrassDistanceBlur;
@@ -38,8 +38,6 @@ CBUFFER_START(UnityPerMaterial)
     float _EnableGrassShadowNoise;
     float _GrassShadowNoiseStrength;
     float _GrassShadowNoiseContrast;
-    float4 _GrassShadowNoiseScale;
-    float _GrassShadowNoiseScrollSpeed;
     float _EnableWaveShape;
     float _WaveFrequency;
     float _WaveSpacingVariation;
@@ -58,6 +56,7 @@ CBUFFER_START(UnityPerMaterial)
     float4 _NearFarRange;
     float4 _BottomColor;
     float _HeightBlend;
+    float _EnableTerrain;
     float _UseTerrainColor;
     float4 _TerrainColor;
     float _TerrainBlendStrength;
@@ -74,8 +73,6 @@ CBUFFER_START(UnityPerMaterial)
     float _InteractionRecoveryFrequency;
     float _InteractionRecoveryNoiseScale;
 CBUFFER_END
-
-float4 _GrassCameraForwardWS;
 
 float GetBladeMaskFromUV(float uvY)
 {
@@ -95,6 +92,16 @@ float UseDetailFallback()
 float GetWindLean01()
 {
     return saturate(_WindSpeed * 0.1);
+}
+
+float WindEnabled01()
+{
+    return GetToggle01(_EnableWind);
+}
+
+float ColorEnabled01()
+{
+    return GetToggle01(_EnableColor);
 }
 
 float SampleWindTexture01(float2 uv)
