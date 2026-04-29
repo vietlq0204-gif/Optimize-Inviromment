@@ -34,11 +34,61 @@ public class CameraController : MonoBehaviour
     [SerializeField] private bool enableCameraBlur = true;
     [SerializeField] private float blurDistance = 6f;
     [SerializeField] private float nearFocusDistance = 1.5f;
+    [SerializeField] [Range(0.25f, 2f)] private float blurStrength = 1f;
+
+    public float MinPitch
+    {
+        get => minPitch;
+        set => minPitch = Mathf.Min(value, maxPitch);
+    }
+
+    public float MaxPitch
+    {
+        get => maxPitch;
+        set => maxPitch = Mathf.Max(value, minPitch);
+    }
+
+    public float LookAtHeight
+    {
+        get => lookAtHeight;
+        set => lookAtHeight = value;
+    }
+
+    public float MouseDeltaScale
+    {
+        get => mouseDeltaScale;
+        set => mouseDeltaScale = Mathf.Max(0f, value);
+    }
+
+    public bool EnableCameraBlur
+    {
+        get => enableCameraBlur;
+        set => enableCameraBlur = value;
+    }
+
+    public float BlurDistance
+    {
+        get => blurDistance;
+        set => blurDistance = Mathf.Max(0.1f, value);
+    }
+
+    public float NearFocusDistance
+    {
+        get => nearFocusDistance;
+        set => nearFocusDistance = Mathf.Max(0.1f, value);
+    }
+
+    public float BlurStrength
+    {
+        get => blurStrength;
+        set => blurStrength = Mathf.Clamp(value, 0.25f, 2f);
+    }
 
     private float yawRotation;
     private float pitchRotation;
     private Coroutine shakeRoutine;
     private Vector3 shakeOffset;
+    private readonly Collider[] nearbyFocusColliders = new Collider[16];
     private readonly RaycastHit[] focusHits = new RaycastHit[16];
     private Volume blurVolumeInstance;
     private DepthOfField depthOfField;
@@ -115,6 +165,7 @@ public class CameraController : MonoBehaviour
     {
         blurDistance = Mathf.Max(0.1f, blurDistance);
         nearFocusDistance = Mathf.Max(0.1f, nearFocusDistance);
+        blurStrength = Mathf.Clamp(blurStrength, 0.25f, 2f);
     }
 
     private Vector2 ReadLookInput()
@@ -171,6 +222,11 @@ public class CameraController : MonoBehaviour
     {
         focusDistance = 0f;
 
+        if (TryGetNearbyFocusDistance(out focusDistance))
+        {
+            return true;
+        }
+
         int hitCount = Physics.SphereCastNonAlloc(
             transform.position,
             FocusProbeRadius,
@@ -216,6 +272,96 @@ public class CameraController : MonoBehaviour
 
         focusDistance = Mathf.Max(0.1f, nearestHitDistance + FocusPadding);
         return true;
+    }
+
+    private bool TryGetNearbyFocusDistance(out float focusDistance)
+    {
+        focusDistance = 0f;
+
+        int colliderCount = Physics.OverlapSphereNonAlloc(
+            transform.position,
+            nearFocusDistance,
+            nearbyFocusColliders,
+            ~0,
+            QueryTriggerInteraction.Ignore);
+
+        if (colliderCount <= 0)
+        {
+            return false;
+        }
+
+        float nearestDistance = float.PositiveInfinity;
+
+        for (int i = 0; i < colliderCount; i++)
+        {
+            Collider candidate = nearbyFocusColliders[i];
+            if (candidate == null)
+            {
+                continue;
+            }
+
+            if (target != null && candidate.transform.IsChildOf(target))
+            {
+                continue;
+            }
+
+            float distance = GetNearbyColliderDistance(candidate, transform.position);
+            if (distance >= nearestDistance)
+            {
+                continue;
+            }
+
+            nearestDistance = distance;
+        }
+
+        if (float.IsPositiveInfinity(nearestDistance))
+        {
+            return false;
+        }
+
+        focusDistance = Mathf.Max(0.1f, nearestDistance + FocusPadding);
+        return true;
+    }
+
+    private static float GetNearbyColliderDistance(Collider candidate, Vector3 point)
+    {
+        if (candidate is TerrainCollider terrainCollider)
+        {
+            return GetTerrainDistance(terrainCollider, point);
+        }
+
+        if (candidate is MeshCollider meshCollider && !meshCollider.convex)
+        {
+            return Mathf.Sqrt(candidate.bounds.SqrDistance(point));
+        }
+
+        Vector3 closestPoint = candidate.ClosestPoint(point);
+        return Vector3.Distance(point, closestPoint);
+    }
+
+    private static float GetTerrainDistance(TerrainCollider terrainCollider, Vector3 point)
+    {
+        Terrain terrain = terrainCollider.GetComponent<Terrain>();
+        if (terrain == null || terrain.terrainData == null)
+        {
+            return Mathf.Sqrt(terrainCollider.bounds.SqrDistance(point));
+        }
+
+        Vector3 terrainPosition = terrain.transform.position;
+        Vector3 terrainSize = terrain.terrainData.size;
+        bool insideTerrainXZ =
+            point.x >= terrainPosition.x &&
+            point.x <= terrainPosition.x + terrainSize.x &&
+            point.z >= terrainPosition.z &&
+            point.z <= terrainPosition.z + terrainSize.z;
+
+        if (!insideTerrainXZ)
+        {
+            return Mathf.Sqrt(terrainCollider.bounds.SqrDistance(point));
+        }
+
+        float terrainHeight = terrain.SampleHeight(point) + terrainPosition.y;
+        return Mathf.Abs(point.y - terrainHeight);
     }
 
     private bool EnsureCameraBlurSetup()
@@ -316,13 +462,18 @@ public class CameraController : MonoBehaviour
             return;
         }
 
+        float blurStrength01 = Mathf.InverseLerp(0.25f, 2f, blurStrength);
+        float farAperture = Mathf.Lerp(8f, DefaultAperture, blurStrength01);
+        float nearAperture = Mathf.Lerp(DefaultAperture, NearFocusAperture, blurStrength01);
+        float targetAperture = hasNearFocus ? nearAperture : farAperture;
+
         depthOfField.active = true;
         depthOfField.mode.overrideState = true;
         depthOfField.mode.value = DepthOfFieldMode.Bokeh;
         depthOfField.focusDistance.overrideState = true;
         depthOfField.focusDistance.value = focusDistance;
         depthOfField.aperture.overrideState = true;
-        depthOfField.aperture.value = hasNearFocus ? NearFocusAperture : DefaultAperture;
+        depthOfField.aperture.value = targetAperture;
         depthOfField.focalLength.overrideState = true;
         depthOfField.focalLength.value = BokehFocalLength;
         depthOfField.bladeCount.overrideState = true;
