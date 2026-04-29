@@ -7,6 +7,7 @@ using UnityEngine;
 public sealed class PlantShaderGUI : ShaderGUI
 {
     private static bool s_ShowCommon = true;
+    private static bool s_ShowGrassShape = true;
     private static bool s_ShowLighting = true;
     private static bool s_ShowWindShape = true;
     private static bool s_ShowWindTexture = true;
@@ -35,6 +36,8 @@ public sealed class PlantShaderGUI : ShaderGUI
         MaterialProperty windSpeed = Find("_WindSpeed", properties);
         MaterialProperty windDirection = Find("_WindDirection", properties);
         MaterialProperty cameraBendStrength = Find("_CameraBendStrength", properties);
+        MaterialProperty enableGrassConeShape = Find("_EnableGrassConeShape", properties);
+        MaterialProperty grassConeTipScale = Find("_GrassConeTipScale", properties);
 
         MaterialProperty enableWaveShape = Find("_EnableWaveShape", properties);
         MaterialProperty waveFrequency = Find("_WaveFrequency", properties);
@@ -73,6 +76,7 @@ public sealed class PlantShaderGUI : ShaderGUI
         MaterialProperty interactionRecoveryNoiseScale = Find("_InteractionRecoveryNoiseScale", properties);
 
         DrawCommon(materialEditor, ref s_ShowCommon, baseMap, baseColor, cutoff, windTexture, windSpeed, windDirection, cameraBendStrength);
+        DrawGrassShape(materialEditor, ref s_ShowGrassShape, enableGrassConeShape, grassConeTipScale);
         DrawLighting(
             materialEditor,
             ref s_ShowLighting,
@@ -171,6 +175,29 @@ public sealed class PlantShaderGUI : ShaderGUI
         }
 
         EditorGUILayout.EndFoldoutHeaderGroup();
+    }
+
+    private static void DrawGrassShape(
+        MaterialEditor materialEditor,
+        ref bool foldout,
+        MaterialProperty enableGrassConeShape,
+        MaterialProperty grassConeTipScale)
+    {
+        bool isEnabled = DrawToggleFoldoutHeader(
+            ref foldout,
+            enableGrassConeShape,
+            MakeLabel("Grass Shape", "Bat hoac tat shape mo rong dan theo chieu cao cho grass."));
+        if (foldout)
+        {
+            EditorGUI.indentLevel++;
+            EditorGUI.BeginDisabledGroup(!isEnabled);
+            materialEditor.ShaderProperty(
+                grassConeTipScale,
+                MakeLabel("Tip Scale", "He so scale ngang tai ngon. Gia tri 1 giu nguyen form goc, lon hon 1 se mo rong dan len phan ngon."));
+            EditorGUI.EndDisabledGroup();
+            EditorGUI.indentLevel--;
+            EditorGUILayout.Space(2);
+        }
     }
 
     private static void DrawLighting(
@@ -460,6 +487,35 @@ public sealed class PlantShaderGUI : ShaderGUI
 
             property.vectorValue = new Vector4(direction.x, direction.y, 0f, 0f);
         }
+    }
+
+    private static bool DrawToggleFoldoutHeader(ref bool foldout, MaterialProperty toggleProperty, GUIContent label)
+    {
+        Rect rect = EditorGUILayout.GetControlRect();
+        Rect foldoutRect = new(rect.x, rect.y, 16f, rect.height);
+        Rect toggleRect = new(rect.x + 16f, rect.y, 18f, rect.height);
+        Rect labelRect = new(rect.x + 36f, rect.y, rect.width - 36f, rect.height);
+
+        Event currentEvent = Event.current;
+        if (currentEvent.type == EventType.MouseDown && labelRect.Contains(currentEvent.mousePosition))
+        {
+            foldout = !foldout;
+            currentEvent.Use();
+        }
+
+        foldout = EditorGUI.Foldout(foldoutRect, foldout, GUIContent.none, true);
+
+        EditorGUI.showMixedValue = toggleProperty.hasMixedValue;
+        EditorGUI.BeginChangeCheck();
+        bool isEnabled = EditorGUI.Toggle(toggleRect, toggleProperty.floatValue > 0.5f);
+        if (EditorGUI.EndChangeCheck())
+        {
+            toggleProperty.floatValue = isEnabled ? 1f : 0f;
+        }
+
+        EditorGUI.showMixedValue = false;
+        EditorGUI.LabelField(labelRect, label, EditorStyles.boldLabel);
+        return isEnabled;
     }
 
     private static GUIContent MakeLabel(string text, string tooltip)

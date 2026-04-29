@@ -23,6 +23,8 @@ CBUFFER_START(UnityPerMaterial)
     float _WindSpeed;
     float4 _WindDirection;
     float _CameraBendStrength;
+    float _EnableGrassConeShape;
+    float _GrassConeTipScale;
     float _EnableWaveShape;
     float _WaveFrequency;
     float _WaveSpacingVariation;
