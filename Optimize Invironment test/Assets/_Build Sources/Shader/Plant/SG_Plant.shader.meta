@@ -3,9 +3,9 @@ guid: 0946d739701a75c4eafb329545a29e96
 ShaderImporter:
   externalObjects: {}
   defaultTextures:
-  - _BaseMap: {fileID: 2800000, guid: 1784390e01857ed488b85b35b3701c8e, type: 3}
+  - _BaseMap: {fileID: 2800000, guid: b8de1270a3682fb4797dca4c7f19df6f, type: 3}
   - _MainTex: {fileID: 2800000, guid: 1784390e01857ed488b85b35b3701c8e, type: 3}
-  - _WindTexture: {fileID: 2800000, guid: 6dcfd0f01a7563d46a08f5c46ad5a508, type: 3}
+  - _WindTexture: {fileID: 2800000, guid: c0524804e5528134498a038336c71364, type: 3}
   nonModifiableTextures: []
   userData: 
   assetBundleName: 

@@ -4,10 +4,10 @@ Shader "Custom/Vit/Plant_URP"
     {
         [MainTexture] _BaseMap ("Base Map", 2D) = "white" {}
         [HideInInspector] _MainTex ("MainTex", 2D) = "white" {}
-        [MainColor] _BaseColor ("Base Color", Color) = (1,0.9510489,0,1)
-        [Toggle] _EnableColor ("Enable Color", Float) = 1
+        [MainColor] _BaseColor ("Base Color", Color) = (1,1,1,1)
+        [Toggle] _EnableColor ("Enable Color", Float) = 0
         _Cutoff ("Alpha Cutoff", Range(0,1)) = 0.5
-        [Toggle] _EnableLighting ("Enable Lighting", Float) = 1
+        [Toggle] _EnableLighting ("Enable Lighting", Float) = 0
         [Toggle] _ReceiveShadows ("Receive Shadows", Float) = 1
         _ShadowStrength ("Shadow Strength", Range(0,1)) = 1
         _ShadowFloor ("Shadow Floor", Range(0,1)) = 0.15
@@ -19,56 +19,56 @@ Shader "Custom/Vit/Plant_URP"
         _AmbientIntensity ("Ambient Intensity", Range(0,4)) = 0.5
         [Toggle] _TwoSidedLighting ("Two-Sided Lighting", Float) = 1
 
-        [Toggle] _EnableWind ("Enable Wind", Float) = 1
+        [Toggle] _EnableWind ("Enable Wind", Float) = 0
         [NoScaleOffset] _WindTexture ("Wind Noise", 2D) = "gray" {}
         _WindSpeed ("Lean", Range(0,10)) = 10
         _WindDirection ("Wind Direction XZ", Vector) = (0.4472136,0.8944272,0,0)
         [Toggle] _EnableGrassConeShape ("Enable Grass Cone Shape", Float) = 0
-        _GrassConeTipScale ("Grass Cone Tip Scale", Range(0.25,4)) = 1.25
+        _GrassConeTipScale ("Grass Cone Tip Scale", Range(0.25,4)) = 1.5
         [Toggle] _EnableGrassDistanceBlur ("Enable Grass Distance Blur", Float) = 0
-        [Toggle] _EnableGrassTransparentBlurPath ("Enable Grass Transparent Blur Path", Float) = 0
-        _GrassDistanceBlurStart ("Grass Distance Blur Start", Range(0,200)) = 18
-        _GrassDistanceBlurEnd ("Grass Distance Blur End", Range(0.1,300)) = 45
+        [Toggle] _EnableGrassTransparentBlurPath ("Enable Grass Transparent Blur Path", Float) = 1
+        _GrassDistanceBlurStart ("Grass Distance Blur Start", Range(0,200)) = 0
+        _GrassDistanceBlurEnd ("Grass Distance Blur End", Range(0.1,300)) = 25
         _GrassDistanceBlurRadius ("Grass Distance Blur Radius", Range(0,8)) = 2
-        _GrassDistanceBlurOpacity ("Grass Distance Blur Opacity", Range(0.1,1)) = 0.68
-        _GrassDistanceBlurBrightness ("Grass Distance Blur Brightness", Range(0,1)) = 0.35
-        _GrassDistanceBlurCutoffShift ("Grass Distance Blur Cutoff Shift", Range(0,0.5)) = 0.12
-        [Toggle] _EnableGrassShadowNoise ("Enable Wind Noise", Float) = 0
-        _GrassShadowNoiseStrength ("Wind Noise Shadow Strength", Range(0,1)) = 0
-        _GrassShadowNoiseContrast ("Wind Noise Shadow Contrast", Range(0.1,4)) = 1.5
+        _GrassDistanceBlurOpacity ("Grass Distance Blur Opacity", Range(0.1,1)) = 0.5
+        _GrassDistanceBlurBrightness ("Grass Distance Blur Brightness", Range(0,1)) = 0.5
+        _GrassDistanceBlurCutoffShift ("Grass Distance Blur Cutoff Shift", Range(0,0.5)) = 0.1
+        [Toggle] _EnableGrassShadowNoise ("Enable Wind Noise", Float) = 1
+        _GrassShadowNoiseStrength ("Wind Noise Shadow Strength", Range(0,1)) = 0.5
+        _GrassShadowNoiseContrast ("Wind Noise Shadow Contrast", Range(0.1,4)) = 3
         [HideInInspector] _PlantSrcBlend ("Plant Src Blend", Float) = 1
         [HideInInspector] _PlantDstBlend ("Plant Dst Blend", Float) = 0
         [HideInInspector] _PlantZWrite ("Plant ZWrite", Float) = 1
 
         [Toggle] _EnableWaveShape ("Enable Wind Vibrate", Float) = 1
-        [HideInInspector] _WaveFrequency ("Wave Frequency", Range(0.1,12)) = 1.2
-        [HideInInspector] _WaveSpacingVariation ("Wave Spacing Variation", Range(0,2)) = 1
-        [HideInInspector] _WaveSpeed ("Wave Speed", Range(0,8)) = 4
-        [HideInInspector] _WaveStrength ("Wave Strength", Range(0,2)) = 0.5
+        [HideInInspector] _WaveFrequency ("Wave Frequency", Range(0.1,12)) = 12
+        [HideInInspector] _WaveSpacingVariation ("Wave Spacing Variation", Range(0,2)) = 2
+        [HideInInspector] _WaveSpeed ("Wave Speed", Range(0,8)) = 6
+        [HideInInspector] _WaveStrength ("Wave Strength", Range(0,2)) = 0.25
         [HideInInspector] _WaveBodyInfluence ("Body Wave", Range(0,1)) = 1
         [HideInInspector] _WaveTipInfluence ("Tip Wave", Range(0,1)) = 1
         [HideInInspector] _WaveLateralInfluence ("Lateral Wave", Range(0,1)) = 1
 
-        [HideInInspector] _WindTextureScale ("Wind Noise Scale", Vector) = (60,50,0,0)
-        [HideInInspector] _WindTextureScrollSpeed ("Wind Noise Scroll Speed", Range(0,5)) = 0.15
+        [HideInInspector] _WindTextureScale ("Wind Noise Scale", Vector) = (40,40,0,0)
+        [HideInInspector] _WindTextureScrollSpeed ("Wind Noise Scroll Speed", Range(0,5)) = 0.2
         [HideInInspector] _WindTextureContrast ("Wind Noise Contrast", Vector) = (0.2,0.8,0,0)
-        [HideInInspector] _WindTextureInfluence ("Noise To Lean", Range(0,1)) = 0.8
+        [HideInInspector] _WindTextureInfluence ("Noise To Lean", Range(0,1)) = 1
         [HideInInspector] _WindTextureWaveInfluence ("Noise To Vibrate", Range(0,1)) = 0
 
-        [HideInInspector] _NearColor ("Near Color", Color) = (0.6595166,0.7132074,0,1)
-        [HideInInspector] _FarColor ("Far Color", Color) = (0.8032724,1,0,1)
+        [HideInInspector] _NearColor ("Near Color", Color) = (0.6,0.6,0.6,1)
+        [HideInInspector] _FarColor ("Far Color", Color) = (1,1,1,1)
         [HideInInspector] _NearFarRange ("Near/Far Range", Vector) = (5,18,0,0)
         [HideInInspector] _BottomColor ("Bottom Color", Color) = (1,1,1,1)
-        [HideInInspector] _HeightBlend ("Height Blend", Range(0,20)) = 4.5
+        [HideInInspector] _HeightBlend ("Height Blend", Range(0,20)) = 5
 
-        [Toggle] _EnableTerrain ("Enable Terrain", Float) = 1
-        [HideInInspector] _UseTerrainColor ("Use Terrain Color", Float) = 1
-        [HideInInspector] _TerrainColor ("Terrain Color", Color) = (0.9887863,1,0,1)
-        [HideInInspector] _TerrainBlendStrength ("Terrain Blend Strength", Range(0,1)) = 1
+        [Toggle] _EnableTerrain ("Enable Terrain", Float) = 0
+        [HideInInspector] _UseTerrainColor ("Use Terrain Color", Float) = 0
+        [HideInInspector] _TerrainColor ("Terrain Color", Color) = (1,0.8003486,0,1)
+        [HideInInspector] _TerrainBlendStrength ("Terrain Blend Strength", Range(0,1)) = 0
         [HideInInspector] _DetailFallbackMode ("Detail Fallback Mode", Float) = 0
         [HideInInspector] _DetailFallbackLightingMin ("Detail Fallback Lighting Min", Range(0,1)) = 0.8
 
-        [Toggle] _EnableInteraction ("Enable Interaction", Float) = 1
+        [Toggle] _EnableInteraction ("Enable Interaction", Float) = 0
         [HideInInspector] _InteractionStrength ("Interaction Strength", Range(0,2)) = 1
         [HideInInspector] _InteractionPushAway ("Interaction Push Away", Range(0,2)) = 0.1
         [HideInInspector] _InteractionFlatten ("Interaction Flatten", Range(0,1)) = 0
