@@ -11,9 +11,7 @@ public sealed class BakedGrassRendererEditor : Editor
     public override void OnInspectorGUI()
     {
         serializedObject.Update();
-        DrawDefaultInspector();
-
-        EditorGUILayout.Space();
+        
         using (new EditorGUI.DisabledScope(EditorApplication.isPlayingOrWillChangePlaymode))
         {
             if (GUILayout.Button("Use Active Terrains"))
@@ -29,6 +27,9 @@ public sealed class BakedGrassRendererEditor : Editor
 
         DrawBakedStats((BakedGrassRenderer)target);
         serializedObject.ApplyModifiedProperties();
+        EditorGUILayout.Space();
+        
+        DrawDefaultInspector();
     }
 
     private static void AssignActiveTerrains(BakedGrassRenderer renderer)
@@ -115,7 +116,8 @@ public sealed class BakedGrassRendererEditor : Editor
                     {
                         Bounds patchBounds;
                         DetailInstanceTransform[] detailTransforms =
-                            terrainData.ComputeDetailInstanceTransforms(patchX, patchY, layer, density, out patchBounds);
+                            terrainData.ComputeDetailInstanceTransforms(patchX, patchY, layer, density,
+                                out patchBounds);
                         if (detailTransforms == null || detailTransforms.Length == 0)
                         {
                             continue;
@@ -126,9 +128,12 @@ public sealed class BakedGrassRendererEditor : Editor
                         for (int detailIndex = 0; detailIndex < detailTransforms.Length; detailIndex++)
                         {
                             DetailInstanceTransform detailTransform = detailTransforms[detailIndex];
-                            Vector3 localPosition = new(detailTransform.posX, detailTransform.posY, detailTransform.posZ);
-                            Quaternion rotation = Quaternion.AngleAxis(detailTransform.rotationY * Mathf.Rad2Deg, Vector3.up);
-                            Vector3 scale = new(detailTransform.scaleXZ, detailTransform.scaleY, detailTransform.scaleXZ);
+                            Vector3 localPosition = new(detailTransform.posX, detailTransform.posY,
+                                detailTransform.posZ);
+                            Quaternion rotation =
+                                Quaternion.AngleAxis(detailTransform.rotationY * Mathf.Rad2Deg, Vector3.up);
+                            Vector3 scale = new(detailTransform.scaleXZ, detailTransform.scaleY,
+                                detailTransform.scaleXZ);
                             Matrix4x4 instanceMatrix = terrainMatrix * Matrix4x4.TRS(localPosition, rotation, scale);
 
                             for (int rendererIndex = 0; rendererIndex < rendererInfos.Count; rendererIndex++)
@@ -174,7 +179,8 @@ public sealed class BakedGrassRendererEditor : Editor
                 continue;
             }
 
-            List<BakedGrassData.Chunk> bakedChunks = BuildChunks(builder, ref hasWorldBounds, ref worldBounds, ref chunkCount, ref instanceCount);
+            List<BakedGrassData.Chunk> bakedChunks = BuildChunks(builder, ref hasWorldBounds, ref worldBounds,
+                ref chunkCount, ref instanceCount);
             if (bakedChunks.Count == 0)
             {
                 continue;
@@ -265,6 +271,7 @@ public sealed class BakedGrassRendererEditor : Editor
             renderer.SetBakedAssetFolder(folderPath);
             EditorUtility.SetDirty(renderer);
         }
+
         EnsureFolderExists(folderPath);
 
         string assetName = string.IsNullOrWhiteSpace(renderer.BakedAssetName)
@@ -275,7 +282,8 @@ public sealed class BakedGrassRendererEditor : Editor
             assetName += ".asset";
         }
 
-        string assetPath = AssetDatabase.GenerateUniqueAssetPath(Path.Combine(folderPath, assetName).Replace('\\', '/'));
+        string assetPath =
+            AssetDatabase.GenerateUniqueAssetPath(Path.Combine(folderPath, assetName).Replace('\\', '/'));
         BakedGrassData data = ScriptableObject.CreateInstance<BakedGrassData>();
         AssetDatabase.CreateAsset(data, assetPath);
 
