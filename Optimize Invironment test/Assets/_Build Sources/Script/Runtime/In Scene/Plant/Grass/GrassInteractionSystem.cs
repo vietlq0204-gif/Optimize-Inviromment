@@ -12,6 +12,7 @@ using UnityEditor;
 [ExecuteAlways]
 public class GrassInteractionSystem : MonoBehaviour
 {
+    private const float IdleHistoryTailMultiplier = 4f;
     private static readonly Color NeutralInteractionClearColor = new(0.5f, 0.5f, 0f, 0f);
     private static readonly int CurrentMapId = Shader.PropertyToID("_CurrentInteractionMap");
     private static readonly int PreviousMapId = Shader.PropertyToID("_PreviousInteractionMap");
@@ -58,6 +59,8 @@ public class GrassInteractionSystem : MonoBehaviour
     private readonly Dictionary<Camera, int> overriddenCameraMasks = new();
     private Material accumulationMaterial;
     private bool historyAIsCurrent = true;
+    private bool historyContainsInteraction;
+    private float lastActiveSourceTime = float.NegativeInfinity;
 
     protected virtual void Reset()
     {
@@ -66,6 +69,8 @@ public class GrassInteractionSystem : MonoBehaviour
 
     protected virtual void OnEnable()
     {
+        historyContainsInteraction = false;
+        lastActiveSourceTime = float.NegativeInfinity;
         NormalizeClearColor();
         AssignDefaultShadersIfMissing();
 
@@ -86,6 +91,8 @@ public class GrassInteractionSystem : MonoBehaviour
 #if UNITY_EDITOR
         EditorApplication.delayCall -= RefreshFromEditorDelay;
 #endif
+        historyContainsInteraction = false;
+        lastActiveSourceTime = float.NegativeInfinity;
         RestoreGameplayCameraMasks();
         ReleaseResources();
         ClearGlobals();
@@ -317,8 +324,12 @@ public class GrassInteractionSystem : MonoBehaviour
         {
             RenderInteractionHistory();
         }
+        else if (historyContainsInteraction)
+        {
+            ClearInteractionHistory();
+        }
 
-        RenderTexture sampledInteraction = canRenderInteraction && HasHistoryAccumulation()
+        RenderTexture sampledInteraction = HasHistoryAccumulation()
             ? GetCurrentHistoryTexture()
             : interactionTexture;
         if (sampledInteraction == null)
@@ -412,7 +423,20 @@ public class GrassInteractionSystem : MonoBehaviour
             return false;
         }
 
-        return true;
+        if (GrassInteractionSource.HasAnyActiveSources)
+        {
+            lastActiveSourceTime = Time.unscaledTime;
+            historyContainsInteraction = true;
+            return true;
+        }
+
+        if (!historyContainsInteraction || !HasHistoryAccumulation())
+        {
+            return false;
+        }
+
+        float idleHistoryTailSeconds = Mathf.Max(historyBlendSeconds * IdleHistoryTailMultiplier, 0.05f);
+        return Time.unscaledTime - lastActiveSourceTime <= idleHistoryTailSeconds;
     }
 
     protected RenderTexture GetCurrentHistoryTexture()
@@ -602,7 +626,7 @@ public class GrassInteractionSystem : MonoBehaviour
 
     protected static GraphicsFormat GetCompatibleDepthFormat()
     {
-        GraphicsFormat preferredFormat = GraphicsFormat.D24_UNorm_S8_UInt;
+        GraphicsFormat preferredFormat = GraphicsFormat.D16_UNorm;
         if (SystemInfo.IsFormatSupported(preferredFormat, GraphicsFormatUsage.Render))
         {
             return preferredFormat;
@@ -614,7 +638,14 @@ public class GrassInteractionSystem : MonoBehaviour
             return fallbackFormat;
         }
 
-        return GraphicsFormat.D16_UNorm;
+        preferredFormat = GraphicsFormat.D24_UNorm_S8_UInt;
+        if (SystemInfo.IsFormatSupported(preferredFormat, GraphicsFormatUsage.Render))
+        {
+            return preferredFormat;
+        }
+
+        fallbackFormat = SystemInfo.GetCompatibleFormat(preferredFormat, GraphicsFormatUsage.Render);
+        return fallbackFormat != GraphicsFormat.None ? fallbackFormat : GraphicsFormat.D16_UNorm;
     }
 
     protected void NormalizeClearColor()
@@ -656,6 +687,27 @@ public class GrassInteractionSystem : MonoBehaviour
         RenderTexture.active = texture;
         GL.Clear(true, true, color);
         RenderTexture.active = previous;
+    }
+
+    private void ClearInteractionHistory()
+    {
+        if (interactionTexture != null)
+        {
+            ClearRenderTexture(interactionTexture, clearColor);
+        }
+
+        if (interactionHistoryA != null)
+        {
+            ClearRenderTexture(interactionHistoryA, clearColor);
+        }
+
+        if (interactionHistoryB != null)
+        {
+            ClearRenderTexture(interactionHistoryB, clearColor);
+        }
+
+        historyAIsCurrent = true;
+        historyContainsInteraction = false;
     }
 
     [System.Diagnostics.Conditional("UNITY_EDITOR")]

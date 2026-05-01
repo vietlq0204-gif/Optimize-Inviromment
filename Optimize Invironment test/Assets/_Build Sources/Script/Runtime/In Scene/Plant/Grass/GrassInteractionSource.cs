@@ -1,4 +1,5 @@
 using System.IO;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 #if UNITY_EDITOR
@@ -11,6 +12,7 @@ using UnityEditor;
 [ExecuteAlways]
 public sealed class GrassInteractionSource : MonoBehaviour
 {
+    private static readonly HashSet<GrassInteractionSource> ActiveSources = new();
     private static readonly int IntensityId = Shader.PropertyToID("_Intensity");
     private static readonly int SoftnessId = Shader.PropertyToID("_Softness");
     private static readonly int DirectionId = Shader.PropertyToID("_Direction");
@@ -41,6 +43,9 @@ public sealed class GrassInteractionSource : MonoBehaviour
     private Vector2 stablePlanarDirection = Vector2.up;
     private bool isStationary = true;
     private bool hasLastPosition;
+    private bool isRegisteredActive;
+
+    public static bool HasAnyActiveSources => ActiveSources.Count > 0;
 
     private void Reset()
     {
@@ -72,6 +77,7 @@ public sealed class GrassInteractionSource : MonoBehaviour
 #if UNITY_EDITOR
         EditorApplication.delayCall -= RefreshFromEditorDelay;
 #endif
+        SetActiveSourceState(false);
         StopSystems();
         hasLastPosition = false;
     }
@@ -112,13 +118,24 @@ public sealed class GrassInteractionSource : MonoBehaviour
             return;
         }
 
-        PlaySystems();
-
         Vector3 currentPosition = transform.position;
         Quaternion currentRotation = transform.rotation;
         Vector3 currentLossyScale = transform.lossyScale;
         float deltaTime = GetDeltaTime();
         bool rootTransformChanged = HasRootTransformChanged(currentPosition, currentRotation, currentLossyScale);
+        bool hasRenderableParticles = Application.isPlaying && HasRenderableParticles();
+        if (Application.isPlaying && !rootTransformChanged && !hasRenderableParticles)
+        {
+            StopIdleSystems();
+            SetActiveSourceState(false);
+            lastPosition = currentPosition;
+            lastRotation = currentRotation;
+            lastLossyScale = currentLossyScale;
+            hasLastPosition = true;
+            return;
+        }
+
+        PlaySystems();
         Vector2 planarDirection = GetFilteredPlanarDirection(currentPosition - lastPosition, deltaTime, out float planarSpeed);
         Vector3 contactPosition = GetStableContactPosition(currentPosition, planarSpeed, deltaTime);
         Vector3 paintPosition = contactPosition + Vector3.up * heightOffset;
@@ -126,6 +143,10 @@ public sealed class GrassInteractionSource : MonoBehaviour
         UpdateEmitterTransforms(paintPosition);
         UpdateParticleWriterState(planarDirection, planarSpeed);
         UpdateEmissionState(rootTransformChanged);
+        if (Application.isPlaying)
+        {
+            SetActiveSourceState(rootTransformChanged || HasRenderableParticles());
+        }
 
         lastPosition = currentPosition;
         lastRotation = currentRotation;
@@ -160,6 +181,7 @@ public sealed class GrassInteractionSource : MonoBehaviour
         stablePlanarDirection = Vector2.up;
         isStationary = true;
         hasLastPosition = false;
+        SetActiveSourceState(false);
     }
 
     private void EnsureParticleSystems()
@@ -410,6 +432,12 @@ public sealed class GrassInteractionSource : MonoBehaviour
         PlayIfNeeded(trailParticles);
     }
 
+    private void StopIdleSystems()
+    {
+        StopIfIdle(contactParticles);
+        StopIfIdle(trailParticles);
+    }
+
     private void StopSystems()
     {
         StopAndClear(contactParticles);
@@ -433,6 +461,16 @@ public sealed class GrassInteractionSource : MonoBehaviour
 
         particleSystem.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         particleSystem.Clear(true);
+    }
+
+    private static void StopIfIdle(ParticleSystem particleSystem)
+    {
+        if (particleSystem == null || !particleSystem.isPlaying || particleSystem.particleCount > 0)
+        {
+            return;
+        }
+
+        particleSystem.Stop(true, ParticleSystemStopBehavior.StopEmitting);
     }
 
     private static Gradient CreateAlphaFadeGradient(bool trailSystem)
@@ -555,6 +593,16 @@ public sealed class GrassInteractionSource : MonoBehaviour
         SetEmissionEnabled(trailParticles, rootTransformChanged);
     }
 
+    private bool HasRenderableParticles()
+    {
+        return HasRenderableParticles(contactParticles) || HasRenderableParticles(trailParticles);
+    }
+
+    private static bool HasRenderableParticles(ParticleSystem particleSystem)
+    {
+        return particleSystem != null && particleSystem.particleCount > 0;
+    }
+
     private static void SetEmissionEnabled(ParticleSystem particleSystem, bool enabled)
     {
         if (particleSystem == null)
@@ -619,6 +667,30 @@ public sealed class GrassInteractionSource : MonoBehaviour
             hideFlags = HideFlags.HideAndDontSave,
         };
         missingShaderLogged = false;
+    }
+
+    private void SetActiveSourceState(bool shouldBeActive)
+    {
+        if (!Application.isPlaying)
+        {
+            shouldBeActive = false;
+        }
+
+        if (shouldBeActive == isRegisteredActive)
+        {
+            return;
+        }
+
+        if (shouldBeActive)
+        {
+            ActiveSources.Add(this);
+        }
+        else
+        {
+            ActiveSources.Remove(this);
+        }
+
+        isRegisteredActive = shouldBeActive;
     }
 
     [System.Diagnostics.Conditional("UNITY_EDITOR")]
