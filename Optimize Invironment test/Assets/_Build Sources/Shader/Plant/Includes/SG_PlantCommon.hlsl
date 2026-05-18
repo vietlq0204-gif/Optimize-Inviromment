@@ -74,6 +74,10 @@ CBUFFER_START(UnityPerMaterial)
     float _InteractionRecoveryNoiseScale;
 CBUFFER_END
 
+float4 _GlobalPlantInteractionConfigState;
+float4 _GlobalPlantInteractionConfigA;
+float4 _GlobalPlantInteractionConfigB;
+
 float GetBladeMaskFromUV(float uvY)
 {
     return saturate(uvY);
@@ -102,6 +106,66 @@ float WindEnabled01()
 float ColorEnabled01()
 {
     return GetToggle01(_EnableColor);
+}
+
+float UseGlobalPlantInteractionConfig01()
+{
+    return step(0.5, _GlobalPlantInteractionConfigState.x);
+}
+
+float InteractionEnabled01()
+{
+    if (UseGlobalPlantInteractionConfig01() > 0.5)
+    {
+        return step(0.5, _GlobalPlantInteractionConfigState.y);
+    }
+
+    return GetToggle01(_EnableInteraction);
+}
+
+float GetInteractionStrengthValue()
+{
+    return UseGlobalPlantInteractionConfig01() > 0.5 ? _GlobalPlantInteractionConfigState.z : _InteractionStrength;
+}
+
+float GetInteractionPushAwayValue()
+{
+    return UseGlobalPlantInteractionConfig01() > 0.5 ? _GlobalPlantInteractionConfigState.w : _InteractionPushAway;
+}
+
+float GetInteractionFlattenValue()
+{
+    return UseGlobalPlantInteractionConfig01() > 0.5 ? _GlobalPlantInteractionConfigA.x : _InteractionFlatten;
+}
+
+float GetInteractionRadiusMultiplierValue()
+{
+    return UseGlobalPlantInteractionConfig01() > 0.5 ? _GlobalPlantInteractionConfigA.y : _InteractionRadiusMultiplier;
+}
+
+float GetInteractionVerticalRangeValue()
+{
+    return UseGlobalPlantInteractionConfig01() > 0.5 ? _GlobalPlantInteractionConfigA.z : _InteractionVerticalRange;
+}
+
+float GetInteractionTrailValue()
+{
+    return UseGlobalPlantInteractionConfig01() > 0.5 ? _GlobalPlantInteractionConfigA.w : _InteractionTrail;
+}
+
+float GetInteractionRecoveryStrengthValue()
+{
+    return UseGlobalPlantInteractionConfig01() > 0.5 ? _GlobalPlantInteractionConfigB.x : _InteractionRecoveryStrength;
+}
+
+float GetInteractionRecoveryFrequencyValue()
+{
+    return UseGlobalPlantInteractionConfig01() > 0.5 ? _GlobalPlantInteractionConfigB.y : _InteractionRecoveryFrequency;
+}
+
+float GetInteractionRecoveryNoiseScaleValue()
+{
+    return UseGlobalPlantInteractionConfig01() > 0.5 ? _GlobalPlantInteractionConfigB.z : _InteractionRecoveryNoiseScale;
 }
 
 float SampleWindTexture01(float2 uv)

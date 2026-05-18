@@ -29,9 +29,9 @@ namespace Unity.BuildReportInspector
     public class AssetStats
     {
         // Asset's unique identifier (GUID)
-        public UnityEngine.GUID sourceAssetGUID;
+        public UnityEditor.GUID sourceAssetGUID;
 
-        // Path to the corresponding asset
+        // Path to the corresponding asse
         public string sourceAssetPath;
 
         // Total size of the asset (including objects and resources)
@@ -76,7 +76,7 @@ namespace Unity.BuildReportInspector
 
         // AssetDatabase GUID to stats
         // Note: this list could get large, currently all assets in the build are accumulated here
-        public Dictionary<UnityEngine.GUID, AssetStats> assetStats = new Dictionary<UnityEngine.GUID, AssetStats>();
+        public Dictionary<UnityEditor.GUID, AssetStats> assetStats = new Dictionary<UnityEditor.GUID, AssetStats>();
 
         public AssetStats[] sortedAssetStats; // The contents with assetStats sorted in descending order by size
 
@@ -161,6 +161,7 @@ namespace Unity.BuildReportInspector
                     else
                     {
                         var stats = new AssetStats();
+                        stats.sourceAssetGUID = packedAssetInfo.sourceAssetGUID;
                         stats.sourceAssetPath = packedAssetInfo.sourceAssetPath;
                         UpdateAssetStats(stats, packedAssetInfo, isStreamingResourceFile);
                         m_Stats.assetStats.Add(packedAssetInfo.sourceAssetGUID, stats);

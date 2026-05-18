@@ -17,7 +17,7 @@ float2 GetInteractionUV(float3 worldPos)
 float4 SampleInteractionData(float3 worldPos)
 {
     float2 uv = GetInteractionUV(worldPos);
-    if (GetToggle01(_EnableInteraction) < 0.5 || _GrassInteractionParams.x < 0.5)
+    if (InteractionEnabled01() < 0.5 || _GrassInteractionParams.x < 0.5)
     {
         return float4(0.5, 0.5, 0.0, 0.0);
     }
@@ -32,7 +32,7 @@ float4 SampleInteractionData(float3 worldPos)
 
 float GetInteractionMaskResponse(float mask)
 {
-    float radiusResponse = rcp(max(_InteractionRadiusMultiplier, 0.1));
+    float radiusResponse = rcp(max(GetInteractionRadiusMultiplierValue(), 0.1));
     return pow(saturate(mask), radiusResponse);
 }
 
@@ -66,7 +66,7 @@ float2 ApplyInteractionResponseCurve(float2 interactionAxis, float shapedMask)
 
 float GetInteractionReleaseProgress(float recoveryAlpha)
 {
-    float trailResponse = saturate(_InteractionTrail);
+    float trailResponse = saturate(GetInteractionTrailValue());
     float releaseStart = lerp(0.08, 0.24, trailResponse);
     float releaseEnd = lerp(0.68, 0.94, trailResponse);
     float releaseProgress = smoothstep(releaseStart, releaseEnd, 1.0 - recoveryAlpha);
@@ -87,9 +87,9 @@ float2 GetInteractionField(
     out float2 interactionAxis)
 {
     float projectionHeight = _GrassInteractionParams.y;
-    float verticalRange = max(_InteractionVerticalRange, 0.001);
+    float verticalRange = max(GetInteractionVerticalRangeValue(), 0.001);
     float verticalMask = 1.0 - saturate(abs(worldPos.y - projectionHeight) / verticalRange);
-    float strength = verticalMask * _GrassInteractionParams.z * _InteractionStrength;
+    float strength = verticalMask * _GrassInteractionParams.z * GetInteractionStrengthValue();
     if (strength <= 0.0001)
     {
         interactionMask = 0.0;
@@ -159,8 +159,8 @@ float3 ApplyInteraction(float3 worldPos, float bladeMask)
 
     if (interactionMask > 0.0001)
     {
-        flattenAmount = interactionMask * saturate(_InteractionFlatten) * tipInfluence;
-        bendAmount = length(interactionField) * _InteractionPushAway * tipInfluence;
+        flattenAmount = interactionMask * saturate(GetInteractionFlattenValue()) * tipInfluence;
+        bendAmount = length(interactionField) * GetInteractionPushAwayValue() * tipInfluence;
     }
 
     float returnProgress = releaseReadiness * releaseProgress * releaseProgress;
@@ -170,9 +170,9 @@ float3 ApplyInteraction(float3 worldPos, float bladeMask)
 
     if (recoveryEnvelope > 0.0001)
     {
-        float phase = dot(worldPos.xz, float2(0.73, -1.11)) * _InteractionRecoveryNoiseScale;
-        phase += _Time.y * _InteractionRecoveryFrequency;
-        totalDisplacement += sin(phase) * _InteractionRecoveryStrength * recoveryEnvelope;
+        float phase = dot(worldPos.xz, float2(0.73, -1.11)) * GetInteractionRecoveryNoiseScaleValue();
+        phase += _Time.y * GetInteractionRecoveryFrequencyValue();
+        totalDisplacement += sin(phase) * GetInteractionRecoveryStrengthValue() * recoveryEnvelope;
     }
 
     if (abs(totalDisplacement) > 0.0001)

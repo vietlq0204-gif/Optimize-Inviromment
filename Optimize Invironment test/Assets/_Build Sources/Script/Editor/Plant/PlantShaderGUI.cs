@@ -555,7 +555,7 @@ public sealed class PlantShaderGUI : ShaderGUI
         EditorGUI.EndDisabledGroup();
 
         EditorGUILayout.HelpBox(
-            "Particle System quyet dinh du lieu dau vao cua interaction: emission quyet dinh mat do, lifetime quyet dinh do dai, alpha fade quyet dinh cuong do va quang hoi.",
+            "Neu scene dang dung GrassInteractionConfig tren interaction system, cac gia tri interaction trong material nay chi la fallback. Luc do ban chinh interaction o mot SO duy nhat thay vi sua o source, profile va material rieng le.",
             MessageType.None);
         EditorGUI.indentLevel--;
         EditorGUILayout.Space(4);

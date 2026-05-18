@@ -115,7 +115,7 @@ public sealed class SunShaftsRendererFeature : ScriptableRendererFeature
             return RenderSettings.sun;
         }
 
-        Light[] lights = Object.FindObjectsByType<Light>();
+        Light[] lights = Object.FindObjectsByType<Light>(FindObjectsSortMode.None);
         for (int i = 0; i < lights.Length; i++)
         {
             Light light = lights[i];
@@ -150,7 +150,7 @@ public sealed class SunShaftsRendererFeature : ScriptableRendererFeature
 
         private static readonly MaterialPropertyBlock SharedPropertyBlock = new MaterialPropertyBlock();
 
-        private readonly ProfilingSampler profilingSampler = new ProfilingSampler("Sun Shafts");
+        private readonly ProfilingSampler sunShaftsProfilingSampler = new ProfilingSampler("Sun Shafts");
         private Material material;
 
         public SunShaftsPass()
@@ -199,7 +199,7 @@ public sealed class SunShaftsRendererFeature : ScriptableRendererFeature
             destinationDesc.clearBuffer = false;
             TextureHandle destination = renderGraph.CreateTexture(destinationDesc);
 
-            using (IRasterRenderGraphBuilder builder = renderGraph.AddRasterRenderPass<PassData>("Sun Shafts", out PassData passData, profilingSampler))
+            using (IRasterRenderGraphBuilder builder = renderGraph.AddRasterRenderPass<PassData>("Sun Shafts", out PassData passData, sunShaftsProfilingSampler))
             {
                 passData.material = material;
                 passData.sourceTexture = source;
