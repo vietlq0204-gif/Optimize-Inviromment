@@ -15,35 +15,53 @@ public class EnvironmentInteractor : MonoBehaviour
     private const float DebugDrawHeightOffset = 0.03f;
 
     [Header("Config")]
+    [Tooltip("Config cỏ dùng riêng cho source này. Nếu bỏ trống, source sẽ dùng config đang gắn trên EnvironmentInteractionSystem.")]
     [SerializeField] private GrassInteractionConfig interactionConfig;
 
-    [Header("Profile")]
-    [SerializeField] protected EnvironmentInteractionProfile profile;
+    [Header("Target")]
+    [Tooltip("Nhóm hệ thống sẽ nhận interaction này. Với cỏ, giữ Vegetation.")]
     [SerializeField] protected InteractionTargetMask targets = InteractionTargetMask.Vegetation;
+    [Tooltip("Độ lệch chiều cao của điểm ghi tương tác so với vị trí object khi không có GrassInteractionConfig.")]
     [SerializeField] protected float heightOffset = 0.05f;
 
     [Header("Contact Shape")]
+    [Tooltip("Bật/tắt vùng đè trực tiếp quanh object.")]
     [SerializeField] protected bool emitContactShape = true;
+    [Tooltip("Bán kính vùng cỏ bị đè trực tiếp khi không có GrassInteractionConfig.")]
     [SerializeField] protected float contactRadius = 0.6f;
+    [Tooltip("Cường độ vùng đè trực tiếp khi không có GrassInteractionConfig.")]
     [SerializeField] protected float contactStrength = 1f;
 
     [Header("Trail Shape")]
+    [Tooltip("Bật/tắt vệt cỏ khi object di chuyển.")]
     [SerializeField] protected bool emitTrailShape = true;
+    [Tooltip("Bán kính vệt cỏ phía sau khi không có GrassInteractionConfig.")]
     [SerializeField] protected float trailRadius = 0.45f;
+    [Tooltip("Cường độ vệt cỏ khi không có GrassInteractionConfig.")]
     [SerializeField] protected float trailStrength = 1f;
+    [Tooltip("Quãng đường tối thiểu để tạo trail khi không có GrassInteractionConfig.")]
     [SerializeField] protected float minimumTrailDistance = 0.02f;
 
     [Header("Behavior")]
+    [Tooltip("Vẫn ghi vùng contact khi object đứng yên.")]
     [SerializeField] protected bool emitWhileStationary = true;
+    [Tooltip("Chặn recovery khi object đứng yên trên cỏ.")]
     [SerializeField] protected bool suppressRecoveryWhileStationary = true;
 
     [Header("Debug")]
+    [Tooltip("Vẽ gizmo debug cho vùng contact/trail trong Scene view.")]
     [SerializeField] private bool drawDebugShapes = true;
+    [Tooltip("Chỉ vẽ gizmo debug khi chọn object.")]
     [SerializeField] private bool drawDebugOnlyWhenSelected = true;
+    [Tooltip("Vẽ mũi tên hướng/tốc độ di chuyển.")]
     [SerializeField] private bool drawDebugVelocity = true;
+    [Tooltip("Hiện label thông số debug khi chọn object.")]
     [SerializeField] private bool drawDebugLabels = true;
+    [Tooltip("Màu gizmo vùng contact.")]
     [SerializeField] private Color debugContactColor = new Color(0.15f, 0.85f, 1f, 0.9f);
+    [Tooltip("Màu gizmo vùng trail.")]
     [SerializeField] private Color debugTrailColor = new Color(1f, 0.45f, 0.2f, 0.9f);
+    [Tooltip("Màu gizmo hướng vận tốc.")]
     [SerializeField] private Color debugVelocityColor = new Color(1f, 0.95f, 0.2f, 0.95f);
 
     private Vector3 lastPosition;
@@ -362,7 +380,7 @@ public class EnvironmentInteractor : MonoBehaviour
             return Mathf.Max(config.minimumDirectionalSpeed, 0.0001f);
         }
 
-        return profile != null ? Mathf.Max(profile.minimumDirectionalSpeed, 0.0001f) : 0.0001f;
+        return 0.0001f;
     }
 
     protected float GetContactSoftness()
@@ -373,7 +391,7 @@ public class EnvironmentInteractor : MonoBehaviour
             return config.contactSoftness;
         }
 
-        return profile != null ? profile.contactSoftness : 0.45f;
+        return 0.45f;
     }
 
     protected float GetContactDirectionalInfluence()
@@ -384,7 +402,7 @@ public class EnvironmentInteractor : MonoBehaviour
             return config.contactDirectionalInfluence;
         }
 
-        return profile != null ? profile.contactDirectionalInfluence : 0.1f;
+        return 0.1f;
     }
 
     protected float GetContactRecoveryWeight()
@@ -395,7 +413,7 @@ public class EnvironmentInteractor : MonoBehaviour
             return config.contactRecoveryWeight;
         }
 
-        return profile != null ? profile.contactRecoveryWeight : 0.16f;
+        return 0.16f;
     }
 
     protected float GetTrailSoftness()
@@ -406,7 +424,7 @@ public class EnvironmentInteractor : MonoBehaviour
             return config.trailSoftness;
         }
 
-        return profile != null ? profile.trailSoftness : 0.68f;
+        return 0.68f;
     }
 
     protected float GetTrailDirectionalInfluence()
@@ -417,7 +435,7 @@ public class EnvironmentInteractor : MonoBehaviour
             return config.trailDirectionalInfluence;
         }
 
-        return profile != null ? profile.trailDirectionalInfluence : 0.35f;
+        return 0.35f;
     }
 
     protected float GetTrailRecoveryWeight()
@@ -428,7 +446,7 @@ public class EnvironmentInteractor : MonoBehaviour
             return config.trailRecoveryWeight;
         }
 
-        return profile != null ? profile.trailRecoveryWeight : 0.9f;
+        return 0.9f;
     }
 
     protected virtual void OnDrawGizmos()

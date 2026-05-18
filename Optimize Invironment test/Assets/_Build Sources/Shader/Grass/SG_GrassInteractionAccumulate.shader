@@ -29,6 +29,7 @@ Shader "Hidden/Vit/GrassInteractionAccumulate"
             CBUFFER_START(UnityPerMaterial)
                 float _HistoryPersistence;
                 float4 _NeutralInteractionColor;
+                float4 _PreviousUVOffset;
             CBUFFER_END
 
             struct Attributes
@@ -64,7 +65,12 @@ Shader "Hidden/Vit/GrassInteractionAccumulate"
             half4 frag(Varyings input) : SV_Target
             {
                 float4 current = SAMPLE_TEXTURE2D(_CurrentInteractionMap, sampler_CurrentInteractionMap, input.uv);
-                float4 previous = SAMPLE_TEXTURE2D(_PreviousInteractionMap, sampler_PreviousInteractionMap, input.uv);
+                float2 previousUV = input.uv + _PreviousUVOffset.xy;
+                float4 previous = _NeutralInteractionColor;
+                if (all(previousUV >= 0.0) && all(previousUV <= 1.0))
+                {
+                    previous = SAMPLE_TEXTURE2D(_PreviousInteractionMap, sampler_PreviousInteractionMap, previousUV);
+                }
 
                 float currentMask = saturate(current.a);
                 float previousMask = saturate(previous.a) * saturate(_HistoryPersistence);

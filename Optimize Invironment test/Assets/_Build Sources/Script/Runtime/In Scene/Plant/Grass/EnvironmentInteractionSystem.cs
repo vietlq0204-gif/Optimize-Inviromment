@@ -40,6 +40,7 @@ public class EnvironmentInteractionSystem : MonoBehaviour
     private static readonly int PreviousMapId = Shader.PropertyToID("_PreviousInteractionMap");
     private static readonly int PersistenceId = Shader.PropertyToID("_HistoryPersistence");
     private static readonly int NeutralColorId = Shader.PropertyToID("_NeutralInteractionColor");
+    private static readonly int PreviousUVOffsetId = Shader.PropertyToID("_PreviousUVOffset");
 
     private static readonly int BaseInteractionMapId = Shader.PropertyToID("_BaseInteractionMap");
     private static readonly int ShapeCountId = Shader.PropertyToID("_ShapeCount");
@@ -49,33 +50,51 @@ public class EnvironmentInteractionSystem : MonoBehaviour
     private static readonly int ShapeData2Id = Shader.PropertyToID("_ShapeData2");
 
     [Header("Tracking")]
+    [Tooltip("Transform mà vùng interaction sẽ đi theo. Thường là Player hoặc camera target.")]
     [SerializeField] protected Transform followTarget;
+    [Tooltip("Độ lệch vị trí vùng interaction so với Follow Target. Y thường đặt cao để camera/RT nhìn xuống vùng cỏ.")]
     [SerializeField] protected Vector3 worldOffset = new Vector3(0f, 18f, 0f);
+    [Tooltip("Trong Edit Mode, vùng interaction đi theo Scene View camera nếu không chạy game.")]
     [SerializeField] protected bool followSceneViewInEditMode = true;
 
     [Header("Render")]
+    [Tooltip("Layer được dùng khi render interaction map. Chỉ object thuộc layer này được camera interaction nhìn thấy nếu dùng path render layer.")]
     [SerializeField] protected LayerMask cullingMask;
+    [Tooltip("Nửa kích thước vùng interaction tính theo world unit. Vùng đầy đủ có cạnh bằng Orthographic Size x 2.")]
     [SerializeField] protected float orthographicSize = 16f;
+    [Tooltip("Cường độ tổng khi shader đọc interaction map.")]
     [SerializeField] protected float globalStrength = 1f;
+    [Tooltip("Độ phân giải texture interaction. Cao hơn mịn hơn nhưng tốn GPU hơn.")]
     [SerializeField] protected InteractionResolution resolution = InteractionResolution.Resolution512;
+    [Tooltip("Màu trạng thái trung lập của interaction map. Thường giữ mặc định 0.5, 0.5, 0, 0.")]
     [SerializeField] protected Color clearColor = new Color(0.5f, 0.5f, 0f, 0f);
+    [Tooltip("Ẩn layer interaction khỏi camera game để chỉ hệ thống interaction sử dụng.")]
     [SerializeField] protected bool hideInteractionLayerFromGameCameras = true;
 
     [Header("History")]
+    [Tooltip("Thời gian blend/history của vết cỏ bị đè. Tăng giá trị để vết đè hồi chậm hơn; đặt rất lớn để gần như không hồi trong lúc test.")]
     [SerializeField] protected float historyBlendSeconds = 0.12f;
+    [Tooltip("Shader dùng để cộng dồn interaction map qua thời gian.")]
     [SerializeField] private Shader accumulationShader;
 
     [Header("Shape Writer")]
+    [Tooltip("Shader dùng để ghi các shape contact/trail vào interaction map.")]
     [SerializeField] private Shader batchStampShader;
 
     [Header("Interaction Config")]
+    [Tooltip("Config cỏ dùng chung cho toàn bộ interaction system. Nếu source không có config riêng, nó sẽ dùng config này.")]
     [SerializeField] private GrassInteractionConfig interactionConfig;
 
     [Header("Debug")]
+    [Tooltip("Vẽ vùng interaction trong Scene view.")]
     [SerializeField] private bool drawDebugRegion = true;
+    [Tooltip("Chỉ vẽ vùng debug khi chọn object.")]
     [SerializeField] private bool drawDebugOnlyWhenSelected = true;
+    [Tooltip("Hiện label debug gồm kích thước, độ phân giải và số shape.")]
     [SerializeField] private bool drawDebugLabels = true;
+    [Tooltip("Vẽ đường chữ thập ở tâm vùng interaction.")]
     [SerializeField] private bool drawDebugCross = true;
+    [Tooltip("Màu gizmo của vùng interaction.")]
     [SerializeField] private Color debugRegionColor = new Color(0.1f, 0.85f, 1f, 0.9f);
 
     protected RenderTexture interactionTexture;
@@ -87,6 +106,8 @@ public class EnvironmentInteractionSystem : MonoBehaviour
     private Material batchStampMaterial;
     private bool historyAIsCurrent = true;
     private bool historyContainsInteraction;
+    private bool hasHistoryRegionCenter;
+    private Vector3 historyRegionCenter;
     private float lastActiveShapeTime = float.NegativeInfinity;
     private int lastCollectedShapeCount;
 
@@ -106,6 +127,7 @@ public class EnvironmentInteractionSystem : MonoBehaviour
     protected virtual void OnEnable()
     {
         historyContainsInteraction = false;
+        hasHistoryRegionCenter = false;
         lastActiveShapeTime = float.NegativeInfinity;
         NormalizeClearColor();
         AssignDefaultShadersIfMissing();
@@ -120,6 +142,7 @@ public class EnvironmentInteractionSystem : MonoBehaviour
         EditorApplication.delayCall -= RefreshFromEditorDelay;
 #endif
         historyContainsInteraction = false;
+        hasHistoryRegionCenter = false;
         lastActiveShapeTime = float.NegativeInfinity;
         if (ReferenceEquals(ActiveInteractionConfig, interactionConfig))
         {
@@ -242,6 +265,7 @@ public class EnvironmentInteractionSystem : MonoBehaviour
         texture.Create();
         ClearRenderTexture(texture, clearColor);
         historyAIsCurrent = true;
+        hasHistoryRegionCenter = false;
         return texture;
     }
 
@@ -302,7 +326,7 @@ public class EnvironmentInteractionSystem : MonoBehaviour
 
         if (hasShapes || shouldKeepHistory)
         {
-            RenderInteractionHistory();
+            RenderInteractionHistory(regionCenter);
         }
         else if (historyContainsInteraction)
         {
@@ -487,7 +511,7 @@ public class EnvironmentInteractionSystem : MonoBehaviour
         return writeIndex;
     }
 
-    protected virtual void RenderInteractionHistory()
+    protected virtual void RenderInteractionHistory(Vector3 regionCenter)
     {
         if (!HasHistoryAccumulation())
         {
@@ -499,14 +523,25 @@ public class EnvironmentInteractionSystem : MonoBehaviour
         float deltaTime = Application.isPlaying ? Mathf.Max(Time.deltaTime, 0.0001f) : (1f / 60f);
         float blendSeconds = Mathf.Max(historyBlendSeconds, 0.0001f);
         float persistence = Mathf.Exp(-deltaTime / blendSeconds);
+        Vector2 previousUVOffset = Vector2.zero;
+        if (hasHistoryRegionCenter)
+        {
+            float textureWorldSize = Mathf.Max(orthographicSize * 2f, 0.0001f);
+            previousUVOffset = new Vector2(
+                (regionCenter.x - historyRegionCenter.x) / textureWorldSize,
+                (regionCenter.z - historyRegionCenter.z) / textureWorldSize);
+        }
 
         accumulationMaterial.SetTexture(CurrentMapId, interactionTexture);
         accumulationMaterial.SetTexture(PreviousMapId, previousHistory);
         accumulationMaterial.SetFloat(PersistenceId, persistence);
         accumulationMaterial.SetColor(NeutralColorId, clearColor);
+        accumulationMaterial.SetVector(PreviousUVOffsetId, new Vector4(previousUVOffset.x, previousUVOffset.y, 0f, 0f));
         Graphics.Blit(null, nextHistory, accumulationMaterial, 0);
 
         historyAIsCurrent = !historyAIsCurrent;
+        historyRegionCenter = regionCenter;
+        hasHistoryRegionCenter = true;
     }
 
     protected virtual RenderTexture GetCurrentHistoryTexture()
@@ -665,6 +700,7 @@ public class EnvironmentInteractionSystem : MonoBehaviour
 
         historyAIsCurrent = true;
         historyContainsInteraction = false;
+        hasHistoryRegionCenter = false;
     }
 
     protected void RefreshActiveInteractionConfig()

@@ -5,9 +5,10 @@ using UnityEngine;
 /// interaction backend uses shape batching instead of particle writers.
 /// </summary>
 [ExecuteAlways]
-[AddComponentMenu("Grass/Grass Interaction Source (Legacy)")]
+[AddComponentMenu("Grass/Grass Interaction Source")]
 public sealed class GrassInteractionSource : EnvironmentInteractor
 {
+    [Tooltip("Cờ migrate nội bộ để giữ hành vi scene cũ. Field này bị ẩn trong Inspector.")]
     [SerializeField, HideInInspector] private bool legacyStationaryContactUpgraded;
 
     protected override void OnEnable()

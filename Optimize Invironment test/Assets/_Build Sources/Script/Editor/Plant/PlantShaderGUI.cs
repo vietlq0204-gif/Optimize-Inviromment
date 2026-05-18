@@ -555,7 +555,7 @@ public sealed class PlantShaderGUI : ShaderGUI
         EditorGUI.EndDisabledGroup();
 
         EditorGUILayout.HelpBox(
-            "Neu scene dang dung GrassInteractionConfig tren interaction system, cac gia tri interaction trong material nay chi la fallback. Luc do ban chinh interaction o mot SO duy nhat thay vi sua o source, profile va material rieng le.",
+                "Neu scene dang dung GrassInteractionConfig tren interaction system, cac gia tri interaction trong material nay chi la fallback. Luc do ban chinh interaction o mot SO duy nhat thay vi sua o source, config va material rieng le.",
             MessageType.None);
         EditorGUI.indentLevel--;
         EditorGUILayout.Space(4);
