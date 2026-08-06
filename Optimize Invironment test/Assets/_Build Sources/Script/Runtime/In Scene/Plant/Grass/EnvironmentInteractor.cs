@@ -5,7 +5,10 @@ using UnityEditor;
 #endif
 
 /// <summary>
-/// Emits disc and capsule shapes into the shared environment interaction map.
+/// Component chịu trách nhiệm phát ra các tương tác (interaction) vào môi trường.
+/// Nó tạo ra các hình dạng (shape) như đĩa (disc) và viên thuốc (capsule) để mô phỏng
+/// hiệu ứng vật thể đè nén hoặc di chuyển qua thảm thực vật (ví dụ: cỏ).
+/// Các thông số có thể được tùy chỉnh trực tiếp hoặc thông qua một 'GrassInteractionConfig'.
 /// </summary>
 [ExecuteAlways]
 [DisallowMultipleComponent]
@@ -76,12 +79,18 @@ public class EnvironmentInteractor : MonoBehaviour
     private bool rootTransformChanged;
     private bool hasRenderableTrail;
 
+    /// <summary>
+    /// Được gọi khi component được kích hoạt. Khởi tạo trạng thái và đăng ký interactor với hệ thống trung tâm.
+    /// </summary>
     protected virtual void OnEnable()
     {
         InitializeRuntimeState();
         EnvironmentInteractionRegistry.Register(this);
     }
 
+    /// <summary>
+    /// Được gọi khi component bị vô hiệu hóa. Hủy đăng ký interactor và reset trạng thái.
+    /// </summary>
     protected virtual void OnDisable()
     {
         EnvironmentInteractionRegistry.Unregister(this);
@@ -90,6 +99,9 @@ public class EnvironmentInteractor : MonoBehaviour
         hasRenderableTrail = false;
     }
 
+    /// <summary>
+    /// Được gọi trong Editor khi một giá trị được thay đổi. Đảm bảo các giá trị cấu hình luôn hợp lệ (không âm).
+    /// </summary>
     protected virtual void OnValidate()
     {
         heightOffset = Mathf.Max(-5f, heightOffset);
@@ -100,11 +112,20 @@ public class EnvironmentInteractor : MonoBehaviour
         minimumTrailDistance = Mathf.Max(0f, minimumTrailDistance);
     }
 
+    /// <summary>
+    /// Được gọi mỗi khung hình. Cập nhật trạng thái runtime của interactor.
+    /// </summary>
     protected virtual void Update()
     {
         RefreshRuntimeState();
     }
 
+    /// <summary>
+    /// Thu thập các hình dạng tương tác (disc, capsule) và thêm vào buffer.
+    /// Hàm này được gọi bởi một hệ thống bên ngoài (ví dụ: EnvironmentInteractionSystem) để xử lý hiệu ứng.
+    /// </summary>
+    /// <param name="buffer">Danh sách để thêm các InteractionShape được tạo ra.</param>
+    /// <param name="context">Ngữ cảnh của việc thu thập, chứa vị trí tập trung và khoảng cách tối đa.</param>
     public virtual void CollectShapes(List<InteractionShape> buffer, InteractionCollectContext context)
     {
         if (buffer == null)
@@ -172,6 +193,9 @@ public class EnvironmentInteractor : MonoBehaviour
         });
     }
 
+    /// <summary>
+    /// Khởi tạo hoặc reset trạng thái runtime của interactor về giá trị ban đầu.
+    /// </summary>
     protected virtual void InitializeRuntimeState()
     {
         Vector3 currentPosition = transform.position;
@@ -189,6 +213,10 @@ public class EnvironmentInteractor : MonoBehaviour
         hasRenderableTrail = false;
     }
 
+    /// <summary>
+    /// Cập nhật trạng thái của interactor mỗi khung hình, tính toán tốc độ, hướng di chuyển, và vị trí tiếp xúc ổn định.
+    /// Đây là "bộ não" của component, xử lý logic di chuyển.
+    /// </summary>
     protected virtual void RefreshRuntimeState()
     {
         float deltaTime = GetDeltaTime();
@@ -230,6 +258,14 @@ public class EnvironmentInteractor : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Tính toán và lọc hướng di chuyển trên mặt phẳng (XZ) dựa trên sự thay đổi vị trí.
+    /// Hàm này có logic để xử lý "vùng chết" (dead zone) và làm mượt hướng để tránh rung giật.
+    /// </summary>
+    /// <param name="delta">Vector thay đổi vị trí so với khung hình trước.</param>
+    /// <param name="deltaTime">Thời gian giữa các khung hình.</param>
+    /// <param name="currentPlanarSpeed">Tốc độ di chuyển trên mặt phẳng được tính toán (tham số out).</param>
+    /// <returns>Vector2 đại diện cho hướng di chuyển trên mặt phẳng đã được lọc và làm mượt.</returns>
     protected virtual Vector2 GetFilteredPlanarDirection(Vector3 delta, float deltaTime, out float currentPlanarSpeed)
     {
         Vector2 planarDelta = new Vector2(delta.x, delta.z);
@@ -270,6 +306,14 @@ public class EnvironmentInteractor : MonoBehaviour
         return stablePlanarDirection;
     }
 
+    /// <summary>
+    /// Tính toán vị trí tiếp xúc ổn định (stable contact position) bằng cách làm mượt vị trí hiện tại của đối tượng.
+    /// Giúp hiệu ứng tương tác mượt mà hơn, không bị giật khi đối tượng di chuyển không đều.
+    /// </summary>
+    /// <param name="currentPosition">Vị trí hiện tại của transform.</param>
+    /// <param name="currentPlanarSpeed">Tốc độ di chuyển trên mặt phẳng hiện tại.</param>
+    /// <param name="deltaTime">Thời gian giữa các khung hình.</param>
+    /// <returns>Vị trí tiếp xúc đã được làm mượt.</returns>
     protected virtual Vector3 GetStableContactPosition(Vector3 currentPosition, float currentPlanarSpeed, float deltaTime)
     {
         Vector3 targetPosition = currentPosition;
@@ -290,6 +334,13 @@ public class EnvironmentInteractor : MonoBehaviour
         return Vector3.Lerp(stableContactPosition - Vector3.up * GetHeightOffset(), targetPosition, followT);
     }
 
+    /// <summary>
+    /// Kiểm tra xem transform của đối tượng (vị trí, xoay, tỷ lệ) có thay đổi đáng kể so với khung hình trước không.
+    /// </summary>
+    /// <param name="currentPosition">Vị trí hiện tại.</param>
+    /// <param name="currentRotation">Rotation hiện tại.</param>
+    /// <param name="currentLossyScale">Tỷ lệ lossy hiện tại.</param>
+    /// <returns>True nếu có sự thay đổi vượt ngưỡng, ngược lại trả về false.</returns>
     protected virtual bool HasRootTransformChanged(Vector3 currentPosition, Quaternion currentRotation, Vector3 currentLossyScale)
     {
         const float positionThreshold = 0.0005f;
@@ -302,76 +353,123 @@ public class EnvironmentInteractor : MonoBehaviour
         return positionChanged || rotationChanged || scaleChanged;
     }
 
+    /// <summary>
+    /// Kiểm tra xem một vị trí có nằm trong khoảng cách thu thập (collection distance) so với điểm tập trung hay không.
+    /// </summary>
+    /// <param name="position">Vị trí cần kiểm tra.</param>
+    /// <param name="focusPosition">Vị trí trung tâm (thường là camera hoặc người chơi).</param>
+    /// <param name="maxDistance">Khoảng cách tối đa.</param>
+    /// <returns>True nếu nằm trong khoảng cách, ngược lại là false.</returns>
     protected static bool IsWithinCollectionDistance(Vector3 position, Vector3 focusPosition, float maxDistance)
     {
         Vector2 delta = new Vector2(position.x - focusPosition.x, position.z - focusPosition.z);
         return delta.sqrMagnitude <= maxDistance * maxDistance;
     }
 
+    /// <summary>
+    /// Lấy giá trị delta time một cách an toàn, hoạt động được cả trong Play Mode và Edit Mode.
+    /// </summary>
+    /// <returns>Time.deltaTime nếu đang chạy, hoặc một giá trị cố định (1/60s) nếu trong Editor.</returns>
     protected static float GetDeltaTime()
     {
         return Application.isPlaying ? Mathf.Max(Time.deltaTime, 0.0001f) : (1f / 60f);
     }
 
+    /// <summary>
+    /// Xác định xem tương tác hiện tại có được coi là "đang di chuyển" hay không.
+    /// </summary>
+    /// <returns>True nếu tốc độ lớn hơn ngưỡng hoặc có vệt (trail) có thể render.</returns>
     protected virtual bool IsMovingInteraction()
     {
         float minimumSpeed = GetMinimumDirectionalSpeed();
         return planarSpeed >= minimumSpeed || hasRenderableTrail;
     }
 
+    /// <summary>
+    /// Xác định và trả về cấu hình tương tác (GrassInteractionConfig) sẽ được sử dụng.
+    /// Ưu tiên config được gán trực tiếp trên component, nếu không có sẽ lấy config chung từ hệ thống.
+    /// </summary>
+    /// <returns>Đối tượng GrassInteractionConfig đang hoạt động.</returns>
     protected GrassInteractionConfig ResolveInteractionConfig()
     {
         return interactionConfig != null ? interactionConfig : EnvironmentInteractionSystem.ActiveInteractionConfig;
     }
 
+    /// <summary>
+    /// Lấy giá trị độ lệch chiều cao (height offset) từ config hoặc từ giá trị mặc định.
+    /// </summary>
     protected float GetHeightOffset()
     {
         GrassInteractionConfig config = ResolveInteractionConfig();
         return config != null ? config.heightOffset : heightOffset;
     }
 
+    /// <summary>
+    /// Lấy giá trị bán kính vùng tiếp xúc (contact radius) từ config hoặc từ giá trị mặc định.
+    /// </summary>
     protected float GetContactRadius()
     {
         GrassInteractionConfig config = ResolveInteractionConfig();
         return config != null ? config.contactRadius : contactRadius;
     }
 
+    /// <summary>
+    /// Lấy giá trị cường độ vùng tiếp xúc (contact strength) từ config hoặc từ giá trị mặc định.
+    /// </summary>
     protected float GetContactStrength()
     {
         GrassInteractionConfig config = ResolveInteractionConfig();
         return config != null ? config.contactStrength : contactStrength;
     }
 
+    /// <summary>
+    /// Lấy giá trị bán kính vệt di chuyển (trail radius) từ config hoặc từ giá trị mặc định.
+    /// </summary>
     protected float GetTrailRadius()
     {
         GrassInteractionConfig config = ResolveInteractionConfig();
         return config != null ? config.trailRadius : trailRadius;
     }
 
+    /// <summary>
+    /// Lấy giá trị cường độ vệt di chuyển (trail strength) từ config hoặc từ giá trị mặc định.
+    /// </summary>
     protected float GetTrailStrength()
     {
         GrassInteractionConfig config = ResolveInteractionConfig();
         return config != null ? config.trailStrength : trailStrength;
     }
 
+    /// <summary>
+    /// Lấy giá trị khoảng cách tối thiểu để tạo vệt (minimum trail distance) từ config hoặc từ giá trị mặc định.
+    /// </summary>
     protected float GetMinimumTrailDistance()
     {
         GrassInteractionConfig config = ResolveInteractionConfig();
         return config != null ? config.minimumTrailDistance : minimumTrailDistance;
     }
 
+    /// <summary>
+    /// Lấy giá trị xác định có phát tương tác khi đứng yên không, từ config hoặc từ giá trị mặc định.
+    /// </summary>
     protected bool GetEmitWhileStationary()
     {
         GrassInteractionConfig config = ResolveInteractionConfig();
         return config != null ? config.emitWhileStationary : emitWhileStationary;
     }
 
+    /// <summary>
+    /// Lấy giá trị xác định có chặn sự phục hồi của cỏ khi đứng yên không, từ config hoặc từ giá trị mặc định.
+    /// </summary>
     protected bool GetSuppressRecoveryWhileStationary()
     {
         GrassInteractionConfig config = ResolveInteractionConfig();
         return config != null ? config.suppressRecoveryWhileStationary : suppressRecoveryWhileStationary;
     }
 
+    /// <summary>
+    /// Lấy giá trị tốc độ tối thiểu để xác định hướng di chuyển, từ config hoặc giá trị mặc định an toàn.
+    /// </summary>
     protected float GetMinimumDirectionalSpeed()
     {
         GrassInteractionConfig config = ResolveInteractionConfig();
@@ -383,6 +481,9 @@ public class EnvironmentInteractor : MonoBehaviour
         return 0.0001f;
     }
 
+    /// <summary>
+    /// Lấy giá trị độ mềm (softness) của vùng tiếp xúc từ config hoặc giá trị mặc định.
+    /// </summary>
     protected float GetContactSoftness()
     {
         GrassInteractionConfig config = ResolveInteractionConfig();
@@ -394,6 +495,9 @@ public class EnvironmentInteractor : MonoBehaviour
         return 0.45f;
     }
 
+    /// <summary>
+    /// Lấy giá trị ảnh hưởng của hướng (directional influence) cho vùng tiếp xúc từ config hoặc giá trị mặc định.
+    /// </summary>
     protected float GetContactDirectionalInfluence()
     {
         GrassInteractionConfig config = ResolveInteractionConfig();
@@ -405,6 +509,9 @@ public class EnvironmentInteractor : MonoBehaviour
         return 0.1f;
     }
 
+    /// <summary>
+    /// Lấy giá trị trọng số phục hồi (recovery weight) của vùng tiếp xúc từ config hoặc giá trị mặc định.
+    /// </summary>
     protected float GetContactRecoveryWeight()
     {
         GrassInteractionConfig config = ResolveInteractionConfig();
@@ -416,6 +523,9 @@ public class EnvironmentInteractor : MonoBehaviour
         return 0.16f;
     }
 
+    /// <summary>
+    /// Lấy giá trị độ mềm (softness) của vệt di chuyển từ config hoặc giá trị mặc định.
+    /// </summary>
     protected float GetTrailSoftness()
     {
         GrassInteractionConfig config = ResolveInteractionConfig();
@@ -427,6 +537,9 @@ public class EnvironmentInteractor : MonoBehaviour
         return 0.68f;
     }
 
+    /// <summary>
+    /// Lấy giá trị ảnh hưởng của hướng (directional influence) cho vệt di chuyển từ config hoặc giá trị mặc định.
+    /// </summary>
     protected float GetTrailDirectionalInfluence()
     {
         GrassInteractionConfig config = ResolveInteractionConfig();
@@ -438,6 +551,9 @@ public class EnvironmentInteractor : MonoBehaviour
         return 0.35f;
     }
 
+    /// <summary>
+    /// Lấy giá trị trọng số phục hồi (recovery weight) của vệt di chuyển từ config hoặc giá trị mặc định.
+    /// </summary>
     protected float GetTrailRecoveryWeight()
     {
         GrassInteractionConfig config = ResolveInteractionConfig();
@@ -449,6 +565,9 @@ public class EnvironmentInteractor : MonoBehaviour
         return 0.9f;
     }
 
+    /// <summary>
+    /// Callback của Unity để vẽ Gizmos trong Scene view. Chỉ vẽ khi không được chọn và tùy chọn `drawDebugOnlyWhenSelected` là false.
+    /// </summary>
     protected virtual void OnDrawGizmos()
     {
 #if UNITY_EDITOR
@@ -461,6 +580,9 @@ public class EnvironmentInteractor : MonoBehaviour
 #endif
     }
 
+    /// <summary>
+    /// Callback của Unity để vẽ Gizmos trong Scene view. Chỉ vẽ khi đối tượng được chọn.
+    /// </summary>
     protected virtual void OnDrawGizmosSelected()
     {
 #if UNITY_EDITOR

@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// Controls how a gameplay object writes interaction into the shared environment map.
+/// Kiểm soát cách một đối tượng trong game ghi lại tương tác vào bản đồ môi trường được chia sẻ.
 /// </summary>
 public abstract class EnvironmentInteractionProfile : ScriptableObject
 {
