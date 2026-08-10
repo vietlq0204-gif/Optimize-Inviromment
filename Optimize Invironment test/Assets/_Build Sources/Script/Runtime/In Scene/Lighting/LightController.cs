@@ -28,6 +28,21 @@ public sealed class LightController : MonoBehaviour
     /// </summary>
     [SerializeField, Min(0f)]
     private float maxIntensity = 1f;
+
+    [SerializeField]
+    private bool useColorTemperature = true;
+
+    [SerializeField, Min(1000f)]
+    private float dayColorTemperature = 6570f;
+
+    [SerializeField, Min(1000f)]
+    private float sunriseColorTemperature = 3600f;
+
+    [SerializeField, Min(1000f)]
+    private float sunsetColorTemperature = 3200f;
+
+    [SerializeField, Min(0f)]
+    private float twilightBlendRangeHours = 1.5f;
     
     /// <summary>
     /// Mốc thời gian 'Giờ' mà ánh sáng đạt cường độ tối đa (giữa trưa)
@@ -76,6 +91,10 @@ public sealed class LightController : MonoBehaviour
         maxIntensityHour = MainClock.WrapHours(maxIntensityHour);
         reachMinIntensityHour = MainClock.WrapHours(reachMinIntensityHour);
         leaveMinIntensityHour = MainClock.WrapHours(leaveMinIntensityHour);
+        dayColorTemperature = Mathf.Max(1000f, dayColorTemperature);
+        sunriseColorTemperature = Mathf.Max(1000f, sunriseColorTemperature);
+        sunsetColorTemperature = Mathf.Max(1000f, sunsetColorTemperature);
+        twilightBlendRangeHours = Mathf.Max(0f, twilightBlendRangeHours);
 
         AssignClockIfMissing();
         ApplyCurrentTime();
@@ -98,6 +117,12 @@ public sealed class LightController : MonoBehaviour
 
         float intensityFactor = EvaluateIntensityFactor(clock.CurrentTimeHours);
         targetLight.intensity = Mathf.Lerp(minIntensity, maxIntensity, intensityFactor);
+        targetLight.useColorTemperature = useColorTemperature;
+
+        if (useColorTemperature)
+        {
+            targetLight.colorTemperature = EvaluateColorTemperature(clock.CurrentTimeHours);
+        }
     }
 
     /// <summary>
@@ -140,6 +165,36 @@ public sealed class LightController : MonoBehaviour
         return 1f - ((progressIntoDay - peakProgress) / (daylightDuration - peakProgress));
     }
 
+    private float EvaluateColorTemperature(float hours)
+    {
+        float sunriseBlend = EvaluateTwilightBlend(hours, leaveMinIntensityHour);
+        float sunsetBlend = EvaluateTwilightBlend(hours, reachMinIntensityHour);
+        float dayWeight = Mathf.Max(0f, 1f - Mathf.Clamp01(sunriseBlend + sunsetBlend));
+        float totalWeight = dayWeight + sunriseBlend + sunsetBlend;
+
+        if (totalWeight <= 0.0001f)
+        {
+            return dayColorTemperature;
+        }
+
+        return ((dayColorTemperature * dayWeight)
+            + (sunriseColorTemperature * sunriseBlend)
+            + (sunsetColorTemperature * sunsetBlend)) / totalWeight;
+    }
+
+    private float EvaluateTwilightBlend(float hours, float targetHour)
+    {
+        if (twilightBlendRangeHours <= 0.0001f)
+        {
+            return 0f;
+        }
+
+        float wrappedHours = MainClock.WrapHours(hours);
+        float distance = GetShortestHourDistance(wrappedHours, MainClock.WrapHours(targetHour));
+        float proximity = Mathf.Clamp01(1f - (distance / twilightBlendRangeHours));
+        return Mathf.SmoothStep(0f, 1f, proximity);
+    }
+
     /// <summary>
     /// Tính toán số giờ tiến từ một giờ đã cho đến một giờ khác.
     /// </summary>
@@ -149,6 +204,12 @@ public sealed class LightController : MonoBehaviour
     private static float GetForwardHours(float fromHour, float toHour)
     {
         return Mathf.Repeat(toHour - fromHour, MainClock.HoursPerDay);
+    }
+
+    private static float GetShortestHourDistance(float fromHour, float toHour)
+    {
+        float forward = GetForwardHours(fromHour, toHour);
+        return Mathf.Min(forward, MainClock.HoursPerDay - forward);
     }
 
     /// <summary>
