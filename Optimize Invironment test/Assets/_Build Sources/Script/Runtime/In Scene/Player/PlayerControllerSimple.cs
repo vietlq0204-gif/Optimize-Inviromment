@@ -7,12 +7,14 @@ using UnityEngine.InputSystem;
 /// Simple player controller for moving on Terrain.
 /// </summary>
 /// <remarks>
-/// - Uses CharacterController for stable movement.
+/// - Uses Rigidbody for movement and custom gravity.
+/// - Migrates legacy CharacterController setups to CapsuleCollider.
 /// - Projects movement onto ground normal so the player follows slopes.
 /// - Uses raycast to detect Terrain / ground normal.
 /// - Reads movement from the active Unity input backend.
 /// </remarks>
-[RequireComponent(typeof(CharacterController))]
+[RequireComponent(typeof(Rigidbody))]
+[RequireComponent(typeof(CapsuleCollider))]
 public sealed class PlayerControllerSimple : MonoBehaviour
 {
     [Header("References")]
@@ -21,27 +23,25 @@ public sealed class PlayerControllerSimple : MonoBehaviour
     [Header("Movement")]
     [SerializeField] private float moveSpeed = 5f;
     [SerializeField] private float rotationSpeed = 12f;
-
-    [Header("Gravity")]
-    [SerializeField] private float gravity = -20f;
-    [SerializeField] private float groundedGravity = -2f;
+    [SerializeField] private float gravityMultiplier = 2f;
 
     [Header("Ground Check")]
     [SerializeField] private LayerMask groundMask = ~0;
     [SerializeField] private float groundCheckDistance = 1.5f;
     [SerializeField] private float groundCheckOffset = 0.2f;
 
-    private CharacterController characterController;
+    private Rigidbody rigidbodyComponent;
     private Vector3 groundNormal = Vector3.up;
-    private float verticalVelocity;
-    private bool isGrounded;
+    private Vector3 pendingMoveDirection;
 
     /// <summary>
     /// Cache required components.
     /// </summary>
     private void Awake()
     {
-        characterController = GetComponent<CharacterController>();
+        EnsurePhysicsSetup();
+        rigidbodyComponent.useGravity = true;
+        rigidbodyComponent.constraints |= RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
 
         if (cameraTransform == null && Camera.main != null)
         {
@@ -49,10 +49,28 @@ public sealed class PlayerControllerSimple : MonoBehaviour
         }
     }
 
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        if (!Application.isPlaying)
+        {
+            EnsurePhysicsSetup();
+        }
+    }
+#endif
+
     /// <summary>
     /// Main update loop.
     /// </summary>
     private void Update()
+    {
+        pendingMoveDirection = GetMoveDirectionOnGround(GetInputDirection());
+    }
+
+    /// <summary>
+    /// Physics update loop.
+    /// </summary>
+    private void FixedUpdate()
     {
         UpdateGroundInfo();
         HandleMovement();
@@ -70,12 +88,10 @@ public sealed class PlayerControllerSimple : MonoBehaviour
 
         if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit hit, groundCheckDistance, groundMask, QueryTriggerInteraction.Ignore))
         {
-            isGrounded = true;
             groundNormal = hit.normal;
         }
         else
         {
-            isGrounded = false;
             groundNormal = Vector3.up;
         }
     }
@@ -85,24 +101,27 @@ public sealed class PlayerControllerSimple : MonoBehaviour
     /// </summary>
     private void HandleMovement()
     {
-        Vector3 inputDirection = GetInputDirection();
-        Vector3 moveDirection = GetMoveDirectionOnGround(inputDirection);
+        Vector3 velocity = pendingMoveDirection * moveSpeed;
+        velocity.y += rigidbodyComponent.linearVelocity.y;
 
-        if (isGrounded && verticalVelocity < 0f)
+        rigidbodyComponent.linearVelocity = velocity;
+        ApplyExtraGravity();
+
+        RotateTowards(pendingMoveDirection);
+    }
+
+    /// <summary>
+    /// Applies extra gravity for this player without changing global Physics gravity.
+    /// </summary>
+    private void ApplyExtraGravity()
+    {
+        if (gravityMultiplier <= 1f)
         {
-            verticalVelocity = groundedGravity;
-        }
-        else
-        {
-            verticalVelocity += gravity * Time.deltaTime;
+            return;
         }
 
-        Vector3 velocity = moveDirection * moveSpeed;
-        velocity.y = verticalVelocity;
-
-        characterController.Move(velocity * Time.deltaTime);
-
-        RotateTowards(moveDirection);
+        Vector3 extraGravity = Physics.gravity * (gravityMultiplier - 1f);
+        rigidbodyComponent.AddForce(extraGravity, ForceMode.Acceleration);
     }
 
     /// <summary>
@@ -211,10 +230,52 @@ public sealed class PlayerControllerSimple : MonoBehaviour
         }
 
         Quaternion targetRotation = Quaternion.LookRotation(moveDirection, Vector3.up);
-        transform.rotation = Quaternion.Slerp(
-            transform.rotation,
+        Quaternion nextRotation = Quaternion.Slerp(
+            rigidbodyComponent.rotation,
             targetRotation,
-            rotationSpeed * Time.deltaTime);
+            rotationSpeed * Time.fixedDeltaTime);
+
+        rigidbodyComponent.MoveRotation(nextRotation);
+    }
+
+    /// <summary>
+    /// Ensures the player uses Rigidbody and CapsuleCollider instead of CharacterController.
+    /// </summary>
+    private void EnsurePhysicsSetup()
+    {
+        CharacterController legacyController = GetComponent<CharacterController>();
+        CapsuleCollider capsuleCollider = GetComponent<CapsuleCollider>();
+
+        if (capsuleCollider == null)
+        {
+            capsuleCollider = gameObject.AddComponent<CapsuleCollider>();
+        }
+
+        if (legacyController != null)
+        {
+            capsuleCollider.center = legacyController.center;
+            capsuleCollider.radius = legacyController.radius;
+            capsuleCollider.height = legacyController.height;
+            capsuleCollider.direction = 1;
+
+#if UNITY_EDITOR
+            if (!Application.isPlaying)
+            {
+                DestroyImmediate(legacyController);
+            }
+            else
+#endif
+            {
+                Destroy(legacyController);
+            }
+        }
+
+        rigidbodyComponent = GetComponent<Rigidbody>();
+
+        if (rigidbodyComponent == null)
+        {
+            rigidbodyComponent = gameObject.AddComponent<Rigidbody>();
+        }
     }
 
     /// <summary>
