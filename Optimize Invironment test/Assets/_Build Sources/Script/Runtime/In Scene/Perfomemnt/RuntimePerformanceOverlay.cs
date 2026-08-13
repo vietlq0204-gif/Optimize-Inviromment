@@ -40,7 +40,7 @@ public sealed class RuntimePerformanceOverlay : MonoBehaviour
     private void Awake()
     {
         // QualitySettings.vSyncCount = 0;
-        // Application.targetFrameRate = 180;
+        // Application.targetFrameRate = 60;
         maxFrameTimings = Mathf.Clamp(maxFrameTimings, 1, frameTimings.Length);
         FrameTimingManager.CaptureFrameTimings(); 
         
