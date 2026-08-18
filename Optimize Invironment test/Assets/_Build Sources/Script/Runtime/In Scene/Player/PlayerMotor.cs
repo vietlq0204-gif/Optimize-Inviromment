@@ -43,6 +43,7 @@ public class PlayerMotor : MonoBehaviour
     private PlayerInputReader playerInputReader;
     private Vector3 groundNormal = Vector3.up;
     private bool isGrounded;
+    private bool isJumping;
     private float lastGroundedTime = float.NegativeInfinity;
     private float queuedJumpTime = float.NegativeInfinity;
     private bool jumpQueued;
@@ -50,6 +51,7 @@ public class PlayerMotor : MonoBehaviour
     public PlayerInputReader InputReader => playerInputReader;
     public Transform CameraTransform => cameraTransform;
     public bool IsGrounded => isGrounded;
+    public bool IsJumping => isJumping;
     public Vector3 GroundNormal => groundNormal;
     public float MoveSpeed => GetMoveSpeedSetting();
     public float RunSpeed => GetRunSpeedSetting();
@@ -286,6 +288,7 @@ public class PlayerMotor : MonoBehaviour
         queuedJumpTime = float.NegativeInfinity;
         jumpQueued = false;
         isGrounded = false;
+        isJumping = true;
         lastGroundedTime = float.NegativeInfinity;
     }
 
@@ -359,6 +362,13 @@ public class PlayerMotor : MonoBehaviour
             return;
         }
 
+        if (rigidbodyComponent != null && rigidbodyComponent.linearVelocity.y > 0.05f)
+        {
+            groundNormal = Vector3.up;
+            isGrounded = false;
+            return;
+        }
+
         Vector3 up = transform.up;
         Vector3 worldCenter = transform.TransformPoint(capsuleCollider.center);
         float radius = GetGroundProbeRadius();
@@ -382,6 +392,7 @@ public class PlayerMotor : MonoBehaviour
             {
                 groundNormal = hit.normal;
                 isGrounded = true;
+                isJumping = false;
                 lastGroundedTime = Time.time;
                 return;
             }

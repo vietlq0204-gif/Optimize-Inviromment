@@ -13,6 +13,8 @@ public class PlayerAnimationPresenter : MonoBehaviour
 
     [Header("Animator")]
     [SerializeField] private string velocityParameter = "Velocity";
+    [SerializeField] private string groundedParameter = "Grounded";
+    [SerializeField] private string jumpingParameter = "Jumping";
     [SerializeField] private float dampTime = 0.1f;
 
     [Header("Speed Thresholds")]
@@ -25,13 +27,17 @@ public class PlayerAnimationPresenter : MonoBehaviour
     private Rigidbody rigidbodyComponent;
     private PlayerMotor playerMotor;
     private int velocityParameterHash;
+    private int groundedParameterHash;
+    private int jumpingParameterHash;
+    private bool hasGroundedParameter;
+    private bool hasJumpingParameter;
 
     protected virtual void Awake()
     {
         animatorComponent = GetComponent<Animator>();
         rigidbodyComponent = GetComponent<Rigidbody>();
         playerMotor = GetComponent<PlayerMotor>();
-        velocityParameterHash = Animator.StringToHash(GetVelocityParameterSetting());
+        RefreshAnimatorParameterHashes();
     }
 
 #if UNITY_EDITOR
@@ -54,6 +60,21 @@ public class PlayerAnimationPresenter : MonoBehaviour
 
         float normalizedVelocity = CalculateBlendVelocity();
         animatorComponent.SetFloat(velocityParameterHash, normalizedVelocity, GetDampTimeSetting(), Time.deltaTime);
+
+        if (playerMotor == null)
+        {
+            return;
+        }
+
+        if (hasGroundedParameter)
+        {
+            animatorComponent.SetBool(groundedParameterHash, playerMotor.IsGrounded);
+        }
+
+        if (hasJumpingParameter)
+        {
+            animatorComponent.SetBool(jumpingParameterHash, playerMotor.IsJumping);
+        }
     }
 
     private float CalculateBlendVelocity()
@@ -102,7 +123,40 @@ public class PlayerAnimationPresenter : MonoBehaviour
         return planarVelocity.magnitude;
     }
 
+    private void RefreshAnimatorParameterHashes()
+    {
+        velocityParameterHash = Animator.StringToHash(GetVelocityParameterSetting());
+        hasGroundedParameter = TryGetParameterHash(GetGroundedParameterSetting(), AnimatorControllerParameterType.Bool, out groundedParameterHash);
+        hasJumpingParameter = TryGetParameterHash(GetJumpingParameterSetting(), AnimatorControllerParameterType.Bool, out jumpingParameterHash);
+    }
+
+    private bool TryGetParameterHash(string parameterName, AnimatorControllerParameterType expectedType, out int parameterHash)
+    {
+        parameterHash = 0;
+        if (animatorComponent == null || string.IsNullOrWhiteSpace(parameterName))
+        {
+            return false;
+        }
+
+        AnimatorControllerParameter[] parameters = animatorComponent.parameters;
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            AnimatorControllerParameter parameter = parameters[i];
+            if (parameter.type != expectedType || parameter.name != parameterName)
+            {
+                continue;
+            }
+
+            parameterHash = parameter.nameHash;
+            return true;
+        }
+
+        return false;
+    }
+
     private string GetVelocityParameterSetting() => animationConfig != null ? animationConfig.VelocityParameter : velocityParameter;
+    private string GetGroundedParameterSetting() => animationConfig != null ? animationConfig.GroundedParameter : groundedParameter;
+    private string GetJumpingParameterSetting() => animationConfig != null ? animationConfig.JumpingParameter : jumpingParameter;
     private float GetDampTimeSetting() => animationConfig != null ? animationConfig.DampTime : dampTime;
     private float GetIdleSpeedThresholdSetting() => animationConfig != null ? animationConfig.IdleSpeedThreshold : idleSpeedThreshold;
     private float GetWalkSpeedThresholdSetting() => animationConfig != null ? animationConfig.WalkSpeedThreshold : walkSpeedThreshold;

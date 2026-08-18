@@ -5,6 +5,8 @@ public sealed class PlayerAnimationConfig : ScriptableObject
 {
     [Header("Animator")]
     [SerializeField] private string velocityParameter = "Velocity";
+    [SerializeField] private string groundedParameter = "Grounded";
+    [SerializeField] private string jumpingParameter = "Jumping";
     [SerializeField] private float dampTime = 0.1f;
 
     [Header("Speed Thresholds")]
@@ -14,6 +16,8 @@ public sealed class PlayerAnimationConfig : ScriptableObject
     [SerializeField] private float dashSpeedThreshold = 8f;
 
     public string VelocityParameter => velocityParameter;
+    public string GroundedParameter => groundedParameter;
+    public string JumpingParameter => jumpingParameter;
     public float DampTime => dampTime;
     public float IdleSpeedThreshold => idleSpeedThreshold;
     public float WalkSpeedThreshold => walkSpeedThreshold;
