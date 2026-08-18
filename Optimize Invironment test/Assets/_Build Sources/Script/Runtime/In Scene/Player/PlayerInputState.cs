@@ -86,10 +86,7 @@ public sealed class PlayerInputState : MonoBehaviour
         CacheInputActions();
 #endif
     }
-
-    /// <summary>
-    /// Cập nhật mỗi khung hình.
-    /// </summary>
+    
     private void Update()
     {
 #if ENABLE_INPUT_SYSTEM
