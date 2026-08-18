@@ -6,7 +6,7 @@ public sealed class PlayerAnimation : MonoBehaviour
 {
     private const float WalkBlendPoint = 0.33333334f;
     private const float JogBlendPoint = 0.6666667f;
-    private const float DashBlendPoint = 1f;
+    private const float RunBlendPoint = 1f;
 
     [Header("Animator")]
     [SerializeField] private string velocityParameter = "Velocity";
@@ -71,10 +71,10 @@ public sealed class PlayerAnimation : MonoBehaviour
         if (planarSpeed <= dashSpeedThreshold)
         {
             float t = Mathf.InverseLerp(jogSpeedThreshold, dashSpeedThreshold, planarSpeed);
-            return Mathf.Lerp(JogBlendPoint, DashBlendPoint, t);
+            return Mathf.Lerp(JogBlendPoint, RunBlendPoint, t);
         }
 
-        return DashBlendPoint;
+        return RunBlendPoint;
     }
 
     private float GetPlanarSpeed()

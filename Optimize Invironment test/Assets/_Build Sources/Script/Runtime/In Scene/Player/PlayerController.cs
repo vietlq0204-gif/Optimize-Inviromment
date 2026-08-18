@@ -1,115 +1,73 @@
 using UnityEngine;
-#if ENABLE_INPUT_SYSTEM
-using UnityEngine.InputSystem;
-#endif
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Rigidbody))]
 [RequireComponent(typeof(CapsuleCollider))]
+[RequireComponent(typeof(PlayerInputState))]
 public sealed class PlayerController : MonoBehaviour
 {
-    [Header("References")]
-    [SerializeField] private Transform cameraTransform;
+    [Header("References")] [SerializeField]
+    private Transform cameraTransform;
 
-#if ENABLE_INPUT_SYSTEM
-    [Header("Input")]
-    [SerializeField] private string actionMapName = "Player";
-    [SerializeField] private string moveActionName = "Move";
-    [SerializeField] private string lookActionName = "Look";
-    [SerializeField] private string attackActionName = "Attack";
-    [SerializeField] private string interactActionName = "Interact";
-    [SerializeField] private string crouchActionName = "Crouch";
-    [SerializeField] private string jumpActionName = "Jump";
-    [SerializeField] private string previousActionName = "Previous";
-    [SerializeField] private string nextActionName = "Next";
-    [SerializeField] private string sprintActionName = "Sprint";
-#endif
+    private Rigidbody rigidbodyComponent;
+    private CapsuleCollider capsuleCollider;
+    private PlayerInputState playerInputState;
 
-    [Header("Movement")]
-    [SerializeField] private float moveSpeed = 5f;
-    [SerializeField] private float sprintSpeed = 8f;
+    [Header("Movement")] [SerializeField] private float moveSpeed = 5f;
+    [SerializeField] private float runSpeed = 8f;
     [SerializeField] private float crouchSpeed = 2.5f;
     [SerializeField] private float rotationSpeed = 12f;
     [SerializeField] private bool rotateTowardsMovement = true;
     [SerializeField] private bool keepWorldUpAligned = true;
     [SerializeField] private float groundedVerticalVelocity = -2f;
 
-    [Header("Jump")]
-    [SerializeField] private float jumpSpeed = 6f;
+    [Header("Jump")] [SerializeField] private float jumpSpeed = 6f;
     [SerializeField] private float jumpBufferTime = 0.15f;
     [SerializeField] private float coyoteTime = 0.1f;
 
-    [Header("Gravity")]
-    [SerializeField] private bool overrideRigidbodyGravity;
+    [Header("Gravity")] [SerializeField] private bool overrideRigidbodyGravity;
     [SerializeField] private Vector3 gravityOverride = new Vector3(0f, -9.81f, 0f);
 
-    [Header("Ground Check")]
-    [SerializeField] private LayerMask groundMask = ~0;
+    [Header("Ground Check")] [SerializeField]
+    private LayerMask groundMask = ~0;
+
     [SerializeField] private float groundCheckDistance = 1.5f;
     [SerializeField] private float groundCheckOffset = 0.2f;
     [SerializeField] [Range(0.1f, 1f)] private float groundProbeRadiusScale = 0.9f;
     [SerializeField] [Range(0f, 89f)] private float maxGroundAngle = 65f;
 
-    [Header("Physics")]
-    [SerializeField] private CollisionDetectionMode collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
+    [Header("Physics")] [SerializeField]
+    private CollisionDetectionMode collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
 
-    private Rigidbody rigidbodyComponent;
-    private CapsuleCollider capsuleCollider;
     private Vector3 groundNormal = Vector3.up;
     private bool isGrounded;
     private float lastGroundedTime = float.NegativeInfinity;
     private float queuedJumpTime = float.NegativeInfinity;
     private bool jumpQueued;
-    private Vector2 moveInput;
-    private Vector2 lookInput;
-    private bool attackPressed;
-    private bool interactPressed;
-    private bool crouchPressed;
-    private bool jumpPressed;
-    private bool previousPressed;
-    private bool nextPressed;
-    private bool sprintPressed;
-    private int attackTriggeredFrame = -1;
-    private int interactTriggeredFrame = -1;
-    private int crouchTriggeredFrame = -1;
-    private int jumpTriggeredFrame = -1;
-    private int previousTriggeredFrame = -1;
-    private int nextTriggeredFrame = -1;
 
-#if ENABLE_INPUT_SYSTEM
-    private PlayerInput playerInput;
-    private InputAction moveAction;
-    private InputAction lookAction;
-    private InputAction attackAction;
-    private InputAction interactAction;
-    private InputAction crouchAction;
-    private InputAction jumpAction;
-    private InputAction previousAction;
-    private InputAction nextAction;
-    private InputAction sprintAction;
-#endif
+    #region PublicField
 
-    public Vector2 MoveInput => moveInput;
-    public Vector2 LookInput => lookInput;
+    public Vector2 MoveInput => playerInputState != null ? playerInputState.MoveInput : Vector2.zero;
+    public Vector2 LookInput => playerInputState != null ? playerInputState.LookInput : Vector2.zero;
     public bool IsGrounded => isGrounded;
     public Vector3 GroundNormal => groundNormal;
     public float MoveSpeed => moveSpeed;
-    public float SprintSpeed => sprintSpeed;
+    public float RunSpeed => runSpeed;
     public float CrouchSpeed => crouchSpeed;
     public float CurrentMoveSpeed => GetCurrentMoveSpeed();
-    public bool IsSprinting => sprintPressed;
-    public bool IsCrouching => crouchPressed;
-    public bool IsAttacking => attackPressed;
-    public bool IsInteracting => interactPressed;
-    public bool IsJumpPressed => jumpPressed;
-    public bool IsPreviousPressed => previousPressed;
-    public bool IsNextPressed => nextPressed;
-    public bool AttackTriggeredThisFrame => attackTriggeredFrame == Time.frameCount;
-    public bool InteractTriggeredThisFrame => interactTriggeredFrame == Time.frameCount;
-    public bool CrouchTriggeredThisFrame => crouchTriggeredFrame == Time.frameCount;
-    public bool JumpTriggeredThisFrame => jumpTriggeredFrame == Time.frameCount;
-    public bool PreviousTriggeredThisFrame => previousTriggeredFrame == Time.frameCount;
-    public bool NextTriggeredThisFrame => nextTriggeredFrame == Time.frameCount;
+    public bool IsSprinting => playerInputState != null && playerInputState.IsSprinting;
+    public bool IsCrouching => playerInputState != null && playerInputState.IsCrouching;
+    public bool IsAttacking => playerInputState != null && playerInputState.IsAttacking;
+    public bool IsInteracting => playerInputState != null && playerInputState.IsInteracting;
+    public bool IsJumpPressed => playerInputState != null && playerInputState.IsJumpPressed;
+    public bool IsPreviousPressed => playerInputState != null && playerInputState.IsPreviousPressed;
+    public bool IsNextPressed => playerInputState != null && playerInputState.IsNextPressed;
+    public bool AttackTriggeredThisFrame => playerInputState != null && playerInputState.AttackTriggeredThisFrame;
+    public bool InteractTriggeredThisFrame => playerInputState != null && playerInputState.InteractTriggeredThisFrame;
+    public bool CrouchTriggeredThisFrame => playerInputState != null && playerInputState.CrouchTriggeredThisFrame;
+    public bool JumpTriggeredThisFrame => playerInputState != null && playerInputState.JumpTriggeredThisFrame;
+    public bool PreviousTriggeredThisFrame => playerInputState != null && playerInputState.PreviousTriggeredThisFrame;
+    public bool NextTriggeredThisFrame => playerInputState != null && playerInputState.NextTriggeredThisFrame;
 
     public float CurrentPlanarSpeed
     {
@@ -126,9 +84,12 @@ public sealed class PlayerController : MonoBehaviour
         }
     }
 
+    #endregion
+
     private void Awake()
     {
         EnsurePhysicsSetup();
+        EnsureInputSetup();
         ApplyGravitySettings();
         ApplyRotationConstraints();
 
@@ -136,26 +97,19 @@ public sealed class PlayerController : MonoBehaviour
         {
             cameraTransform = Camera.main.transform;
         }
-
-#if ENABLE_INPUT_SYSTEM
-        playerInput = GetComponent<PlayerInput>();
-        CacheInputActions();
-#endif
     }
 
     private void OnEnable()
     {
-#if ENABLE_INPUT_SYSTEM
-        CacheInputActions();
-#endif
+        EnsureInputSetup();
     }
 
 #if UNITY_EDITOR
     private void OnValidate()
     {
         moveSpeed = Mathf.Max(0f, moveSpeed);
-        sprintSpeed = Mathf.Max(moveSpeed, sprintSpeed);
-        crouchSpeed = Mathf.Clamp(crouchSpeed, 0f, sprintSpeed);
+        runSpeed = Mathf.Max(moveSpeed, runSpeed);
+        crouchSpeed = Mathf.Clamp(crouchSpeed, 0f, runSpeed);
         rotationSpeed = Mathf.Max(0f, rotationSpeed);
         groundedVerticalVelocity = Mathf.Min(0f, groundedVerticalVelocity);
         jumpSpeed = Mathf.Max(0f, jumpSpeed);
@@ -167,6 +121,7 @@ public sealed class PlayerController : MonoBehaviour
         maxGroundAngle = Mathf.Clamp(maxGroundAngle, 0f, 89f);
 
         EnsurePhysicsSetup();
+        EnsureInputSetup();
         ApplyGravitySettings();
         ApplyRotationConstraints();
     }
@@ -174,9 +129,10 @@ public sealed class PlayerController : MonoBehaviour
 
     private void Update()
     {
-#if ENABLE_INPUT_SYSTEM
-        RefreshInputState();
-#endif
+        if (JumpTriggeredThisFrame)
+        {
+            QueueJump();
+        }
     }
 
     private void FixedUpdate()
@@ -187,15 +143,84 @@ public sealed class PlayerController : MonoBehaviour
         ApplyGravity();
         UpdateRotation();
     }
-
-    private void HandleMovement()
+    
+    private void EnsurePhysicsSetup()
     {
-        Vector3 desiredMoveDirection = GetDesiredMoveDirection();
-        Vector3 velocity = desiredMoveDirection * GetCurrentMoveSpeed();
-        velocity.y = GetTargetVerticalVelocity();
-        rigidbodyComponent.linearVelocity = velocity;
+        CharacterController legacyController = GetComponent<CharacterController>();
+        capsuleCollider = GetComponent<CapsuleCollider>();
+
+        if (capsuleCollider == null)
+        {
+            capsuleCollider = gameObject.AddComponent<CapsuleCollider>();
+        }
+
+        if (legacyController != null)
+        {
+            capsuleCollider.center = legacyController.center;
+            capsuleCollider.radius = legacyController.radius;
+            capsuleCollider.height = legacyController.height;
+            capsuleCollider.direction = 1;
+
+#if UNITY_EDITOR
+            if (!Application.isPlaying)
+            {
+                DestroyImmediate(legacyController);
+            }
+            else
+#endif
+            {
+                Destroy(legacyController);
+            }
+        }
+
+        rigidbodyComponent = GetComponent<Rigidbody>();
+        if (rigidbodyComponent == null)
+        {
+            rigidbodyComponent = gameObject.AddComponent<Rigidbody>();
+        }
+
+        rigidbodyComponent.interpolation = RigidbodyInterpolation.Interpolate;
+        rigidbodyComponent.collisionDetectionMode = collisionDetectionMode;
+    }
+    
+    private void ApplyGravitySettings()
+    {
+        if (rigidbodyComponent == null)
+        {
+            return;
+        }
+
+        rigidbodyComponent.useGravity = !overrideRigidbodyGravity;
     }
 
+    private void EnsureInputSetup()
+    {
+        playerInputState = GetComponent<PlayerInputState>();
+
+        if (playerInputState == null)
+        {
+            playerInputState = gameObject.AddComponent<PlayerInputState>();
+        }
+    }
+    
+    private void ApplyRotationConstraints()
+    {
+        if (rigidbodyComponent == null)
+        {
+            return;
+        }
+
+        RigidbodyConstraints constraints = rigidbodyComponent.constraints;
+        constraints &= ~(RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ);
+
+        if (keepWorldUpAligned)
+        {
+            constraints |= RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
+        }
+
+        rigidbodyComponent.constraints = constraints;
+    }
+    
     private Vector3 GetDesiredMoveDirection()
     {
         Vector3 inputDirection = GetInputDirection();
@@ -220,7 +245,7 @@ public sealed class PlayerController : MonoBehaviour
 
     private Vector3 GetInputDirection()
     {
-        Vector2 clampedInput = Vector2.ClampMagnitude(moveInput, 1f);
+        Vector2 clampedInput = Vector2.ClampMagnitude(MoveInput, 1f);
         if (clampedInput.sqrMagnitude <= 0.0001f)
         {
             return Vector3.zero;
@@ -250,6 +275,15 @@ public sealed class PlayerController : MonoBehaviour
         return worldDirection.sqrMagnitude > 0.0001f
             ? worldDirection.normalized
             : Vector3.zero;
+    }
+    
+    
+    private void HandleMovement()
+    {
+        Vector3 desiredMoveDirection = GetDesiredMoveDirection();
+        Vector3 velocity = desiredMoveDirection * GetCurrentMoveSpeed();
+        velocity.y = GetTargetVerticalVelocity();
+        rigidbodyComponent.linearVelocity = velocity;
     }
 
     private void HandleJump()
@@ -284,6 +318,17 @@ public sealed class PlayerController : MonoBehaviour
         isGrounded = false;
         lastGroundedTime = float.NegativeInfinity;
     }
+    
+    private bool CanJump()
+    {
+        return isGrounded || Time.time - lastGroundedTime <= coyoteTime;
+    }
+    
+    private void QueueJump()
+    {
+        queuedJumpTime = Time.time;
+        jumpQueued = true;
+    }
 
     private float GetTargetVerticalVelocity()
     {
@@ -300,11 +345,6 @@ public sealed class PlayerController : MonoBehaviour
         }
 
         return groundedVerticalVelocity;
-    }
-
-    private bool CanJump()
-    {
-        return isGrounded || Time.time - lastGroundedTime <= coyoteTime;
     }
 
     private void ApplyGravity()
@@ -363,7 +403,8 @@ public sealed class PlayerController : MonoBehaviour
         Vector3 castOrigin = worldCenter + up * castStartOffset;
         float castDistance = groundCheckDistance + castStartOffset;
 
-        if (Physics.SphereCast(castOrigin, radius, -up, out RaycastHit hit, castDistance, groundMask, QueryTriggerInteraction.Ignore))
+        if (Physics.SphereCast(castOrigin, radius, -up, out RaycastHit hit, castDistance, groundMask,
+                QueryTriggerInteraction.Ignore))
         {
             float groundAngle = Vector3.Angle(hit.normal, Vector3.up);
             if (groundAngle <= maxGroundAngle)
@@ -378,6 +419,7 @@ public sealed class PlayerController : MonoBehaviour
         groundNormal = Vector3.up;
         isGrounded = false;
     }
+    
 
     private float GetGroundProbeRadius()
     {
@@ -394,267 +436,18 @@ public sealed class PlayerController : MonoBehaviour
 
     private float GetCurrentMoveSpeed()
     {
-        if (crouchPressed)
+        if (IsCrouching)
         {
             return crouchSpeed;
         }
 
-        if (sprintPressed)
+        if (IsSprinting)
         {
-            return sprintSpeed;
+            return runSpeed;
         }
 
         return moveSpeed;
     }
-
-    private void EnsurePhysicsSetup()
-    {
-        CharacterController legacyController = GetComponent<CharacterController>();
-        capsuleCollider = GetComponent<CapsuleCollider>();
-
-        if (capsuleCollider == null)
-        {
-            capsuleCollider = gameObject.AddComponent<CapsuleCollider>();
-        }
-
-        if (legacyController != null)
-        {
-            capsuleCollider.center = legacyController.center;
-            capsuleCollider.radius = legacyController.radius;
-            capsuleCollider.height = legacyController.height;
-            capsuleCollider.direction = 1;
-
-#if UNITY_EDITOR
-            if (!Application.isPlaying)
-            {
-                DestroyImmediate(legacyController);
-            }
-            else
-#endif
-            {
-                Destroy(legacyController);
-            }
-        }
-
-        rigidbodyComponent = GetComponent<Rigidbody>();
-        if (rigidbodyComponent == null)
-        {
-            rigidbodyComponent = gameObject.AddComponent<Rigidbody>();
-        }
-
-        rigidbodyComponent.interpolation = RigidbodyInterpolation.Interpolate;
-        rigidbodyComponent.collisionDetectionMode = collisionDetectionMode;
-    }
-
-    private void ApplyRotationConstraints()
-    {
-        if (rigidbodyComponent == null)
-        {
-            return;
-        }
-
-        RigidbodyConstraints constraints = rigidbodyComponent.constraints;
-        constraints &= ~(RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ);
-
-        if (keepWorldUpAligned)
-        {
-            constraints |= RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
-        }
-
-        rigidbodyComponent.constraints = constraints;
-    }
-
-    private void ApplyGravitySettings()
-    {
-        if (rigidbodyComponent == null)
-        {
-            return;
-        }
-
-        rigidbodyComponent.useGravity = !overrideRigidbodyGravity;
-    }
-
-#if ENABLE_INPUT_SYSTEM
-    private void CacheInputActions()
-    {
-        if (playerInput == null)
-        {
-            playerInput = GetComponent<PlayerInput>();
-        }
-
-        if (playerInput == null || playerInput.actions == null)
-        {
-            moveAction = null;
-            lookAction = null;
-            attackAction = null;
-            interactAction = null;
-            crouchAction = null;
-            jumpAction = null;
-            previousAction = null;
-            nextAction = null;
-            sprintAction = null;
-            return;
-        }
-
-        InputActionMap actionMap = playerInput.currentActionMap;
-        if (actionMap == null && !string.IsNullOrWhiteSpace(actionMapName))
-        {
-            actionMap = playerInput.actions.FindActionMap(actionMapName, false);
-        }
-
-        moveAction = FindAction(actionMap, moveActionName);
-        lookAction = FindAction(actionMap, lookActionName);
-        attackAction = FindAction(actionMap, attackActionName);
-        interactAction = FindAction(actionMap, interactActionName);
-        crouchAction = FindAction(actionMap, crouchActionName);
-        jumpAction = FindAction(actionMap, jumpActionName);
-        previousAction = FindAction(actionMap, previousActionName);
-        nextAction = FindAction(actionMap, nextActionName);
-        sprintAction = FindAction(actionMap, sprintActionName);
-    }
-
-    private void RefreshInputState()
-    {
-        if (moveAction == null && playerInput != null)
-        {
-            CacheInputActions();
-        }
-
-        moveInput = ReadVector2(moveAction);
-        lookInput = ReadVector2(lookAction);
-
-        attackPressed = IsActionPressed(attackAction);
-        interactPressed = IsActionPressed(interactAction);
-        crouchPressed = IsActionPressed(crouchAction);
-        jumpPressed = IsActionPressed(jumpAction);
-        previousPressed = IsActionPressed(previousAction);
-        nextPressed = IsActionPressed(nextAction);
-        sprintPressed = IsActionPressed(sprintAction);
-
-        if (WasActionPressedThisFrame(attackAction))
-        {
-            attackTriggeredFrame = Time.frameCount;
-        }
-
-        if (WasActionPressedThisFrame(interactAction))
-        {
-            interactTriggeredFrame = Time.frameCount;
-        }
-
-        if (WasActionPressedThisFrame(crouchAction))
-        {
-            crouchTriggeredFrame = Time.frameCount;
-        }
-
-        if (WasActionPressedThisFrame(jumpAction))
-        {
-            jumpTriggeredFrame = Time.frameCount;
-            QueueJump();
-        }
-
-        if (WasActionPressedThisFrame(previousAction))
-        {
-            previousTriggeredFrame = Time.frameCount;
-        }
-
-        if (WasActionPressedThisFrame(nextAction))
-        {
-            nextTriggeredFrame = Time.frameCount;
-        }
-    }
-
-    private static InputAction FindAction(InputActionMap actionMap, string actionName)
-    {
-        if (actionMap == null || string.IsNullOrWhiteSpace(actionName))
-        {
-            return null;
-        }
-
-        return actionMap.FindAction(actionName, false);
-    }
-
-    private static Vector2 ReadVector2(InputAction action)
-    {
-        return action != null ? action.ReadValue<Vector2>() : Vector2.zero;
-    }
-
-    private static bool IsActionPressed(InputAction action)
-    {
-        return action != null && action.IsPressed();
-    }
-
-    private static bool WasActionPressedThisFrame(InputAction action)
-    {
-        return action != null && action.WasPressedThisFrame();
-    }
-
-    public void OnMove(InputValue value)
-    {
-        moveInput = value != null ? value.Get<Vector2>() : Vector2.zero;
-    }
-
-    public void OnLook(InputValue value)
-    {
-        lookInput = value != null ? value.Get<Vector2>() : Vector2.zero;
-    }
-
-    public void OnAttack(InputValue value)
-    {
-        UpdateButtonState(value, ref attackPressed, ref attackTriggeredFrame);
-    }
-
-    public void OnInteract(InputValue value)
-    {
-        UpdateButtonState(value, ref interactPressed, ref interactTriggeredFrame);
-    }
-
-    public void OnCrouch(InputValue value)
-    {
-        UpdateButtonState(value, ref crouchPressed, ref crouchTriggeredFrame);
-    }
-
-    public void OnJump(InputValue value)
-    {
-        bool wasPressed = UpdateButtonState(value, ref jumpPressed, ref jumpTriggeredFrame);
-        if (wasPressed)
-        {
-            QueueJump();
-        }
-    }
-
-    private void QueueJump()
-    {
-        queuedJumpTime = Time.time;
-        jumpQueued = true;
-    }
-
-    public void OnPrevious(InputValue value)
-    {
-        UpdateButtonState(value, ref previousPressed, ref previousTriggeredFrame);
-    }
-
-    public void OnNext(InputValue value)
-    {
-        UpdateButtonState(value, ref nextPressed, ref nextTriggeredFrame);
-    }
-
-    public void OnSprint(InputValue value)
-    {
-        sprintPressed = value != null && value.isPressed;
-    }
-
-    private static bool UpdateButtonState(InputValue value, ref bool pressedState, ref int triggeredFrame)
-    {
-        bool isPressed = value != null && value.isPressed;
-        if (isPressed && !pressedState)
-        {
-            triggeredFrame = Time.frameCount;
-        }
-
-        pressedState = isPressed;
-        return isPressed;
-    }
-#endif
 
     private void OnDrawGizmosSelected()
     {
