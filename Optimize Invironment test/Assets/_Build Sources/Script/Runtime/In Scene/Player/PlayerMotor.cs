@@ -362,7 +362,7 @@ public class PlayerMotor : MonoBehaviour
             return;
         }
 
-        if (rigidbodyComponent != null && rigidbodyComponent.linearVelocity.y > 0.05f)
+        if (isJumping && rigidbodyComponent != null && rigidbodyComponent.linearVelocity.y > 0.05f)
         {
             groundNormal = Vector3.up;
             isGrounded = false;
