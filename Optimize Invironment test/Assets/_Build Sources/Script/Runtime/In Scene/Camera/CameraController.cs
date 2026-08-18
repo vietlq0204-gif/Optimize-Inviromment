@@ -2,9 +2,6 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
-#if ENABLE_INPUT_SYSTEM
-using UnityEngine.InputSystem;
-#endif
 
 public class CameraController : MonoBehaviour
 {
@@ -20,6 +17,7 @@ public class CameraController : MonoBehaviour
 
     [Header("Target")]
     public Transform target;
+    [SerializeField] private PlayerInputReader inputReader;
 
     [Header("Settings")]
     public Vector3 offset = new Vector3(0f, 2f, -4f);
@@ -131,6 +129,7 @@ public class CameraController : MonoBehaviour
         pitchRotation = NormalizePitch(eulerAngles.x);
         yawRotation = eulerAngles.y;
         currentFocusDistance = Mathf.Max(0.1f, blurDistance);
+        ResolveInputReader();
     }
 
     private void LateUpdate()
@@ -140,6 +139,8 @@ public class CameraController : MonoBehaviour
             RestoreCameraBlurState();
             return;
         }
+
+        ResolveInputReader();
 
         Vector2 lookInput = ReadLookInput();
         yawRotation += lookInput.x * mouseSensitivity * Time.deltaTime;
@@ -170,23 +171,29 @@ public class CameraController : MonoBehaviour
 
     private Vector2 ReadLookInput()
     {
-#if ENABLE_INPUT_SYSTEM
-        Vector2 look = Vector2.zero;
+        return inputReader != null ? inputReader.LookInput * mouseDeltaScale : Vector2.zero;
+    }
 
-        if (Mouse.current != null && !Cursor.visible)
+    private void ResolveInputReader()
+    {
+        if (inputReader != null)
         {
-            look = Mouse.current.delta.ReadValue() * mouseDeltaScale;
+            return;
         }
 
-        if (look.sqrMagnitude <= 0.0001f && Gamepad.current != null)
+        if (target != null)
         {
-            look = Gamepad.current.rightStick.ReadValue();
+            inputReader = target.GetComponent<PlayerInputReader>();
+            if (inputReader != null)
+            {
+                return;
+            }
         }
 
-        return look;
-#else
-        return Vector2.zero;
-#endif
+        if (Camera.main != null && Camera.main.transform != null)
+        {
+            inputReader = FindFirstObjectByType<PlayerInputReader>();
+        }
     }
 
     private void UpdateCameraBlur()
