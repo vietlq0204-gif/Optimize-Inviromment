@@ -6,6 +6,15 @@ using UnityEngine;
 [RequireComponent(typeof(PlayerInputReader))]
 public class PlayerMotor : MonoBehaviour
 {
+    public enum LandingAnimationType
+    {
+        None = 0,
+        LowIdle = 1,
+        HighIdle = 2,
+        LowRun = 3,
+        HighRun = 4
+    }
+
     [Header("References")]
     [SerializeField] private Transform cameraTransform;
     [SerializeField] private PlayerMovementConfig movementConfig;
@@ -23,6 +32,11 @@ public class PlayerMotor : MonoBehaviour
     [SerializeField] private float jumpSpeed = 6f;
     [SerializeField] private float jumpBufferTime = 0.15f;
     [SerializeField] private float coyoteTime = 0.1f;
+
+    [Header("Landing Animation")]
+    [SerializeField] private float minLandingAirTime = 0.1f;
+    [SerializeField] private float highLandingMinFallSpeed = 10f;
+    [SerializeField] [Range(0f, 1f)] private float landingMoveInputThreshold = 0.25f;
 
     [Header("Gravity")]
     [SerializeField] private bool overrideRigidbodyGravity;
@@ -47,11 +61,19 @@ public class PlayerMotor : MonoBehaviour
     private float lastGroundedTime = float.NegativeInfinity;
     private float queuedJumpTime = float.NegativeInfinity;
     private bool jumpQueued;
+    private bool hasGroundStateInitialized;
+    private bool airborneStartedWithMoveInput;
+    private float airborneStartTime = float.NegativeInfinity;
+    private float maxDownwardSpeedWhileAirborne;
+    private int landingEventVersion;
+    private LandingAnimationType lastLandingAnimationType;
 
     public PlayerInputReader InputReader => playerInputReader;
     public Transform CameraTransform => cameraTransform;
     public bool IsGrounded => isGrounded;
     public bool IsJumping => isJumping;
+    public int LandingEventVersion => landingEventVersion;
+    public LandingAnimationType LastLandingAnimationType => lastLandingAnimationType;
     public Vector3 GroundNormal => groundNormal;
     public float MoveSpeed => GetMoveSpeedSetting();
     public float RunSpeed => GetRunSpeedSetting();
@@ -99,6 +121,9 @@ public class PlayerMotor : MonoBehaviour
         jumpSpeed = Mathf.Max(0f, jumpSpeed);
         jumpBufferTime = Mathf.Max(0f, jumpBufferTime);
         coyoteTime = Mathf.Max(0f, coyoteTime);
+        minLandingAirTime = Mathf.Max(0f, minLandingAirTime);
+        highLandingMinFallSpeed = Mathf.Max(0f, highLandingMinFallSpeed);
+        landingMoveInputThreshold = Mathf.Clamp01(landingMoveInputThreshold);
         groundCheckDistance = Mathf.Max(0.05f, groundCheckDistance);
         groundCheckOffset = Mathf.Max(0f, groundCheckOffset);
         groundProbeRadiusScale = Mathf.Clamp(groundProbeRadiusScale, 0.1f, 1f);
@@ -125,11 +150,18 @@ public class PlayerMotor : MonoBehaviour
             return;
         }
 
+        bool wasGrounded = isGrounded;
         UpdateGroundInfo();
+        HandleGroundTransitions(wasGrounded);
         HandleJump();
         HandleMovement();
         ApplyGravity();
         UpdateRotation();
+
+        if (!isGrounded)
+        {
+            TrackAirborneMetrics();
+        }
     }
 
     private bool HasRequiredComponents()
@@ -290,6 +322,7 @@ public class PlayerMotor : MonoBehaviour
         isGrounded = false;
         isJumping = true;
         lastGroundedTime = float.NegativeInfinity;
+        BeginAirborneTracking();
     }
 
     private bool CanJump()
@@ -353,6 +386,32 @@ public class PlayerMotor : MonoBehaviour
         rigidbodyComponent.MoveRotation(nextRotation);
     }
 
+    private void HandleGroundTransitions(bool wasGrounded)
+    {
+        if (!hasGroundStateInitialized)
+        {
+            hasGroundStateInitialized = true;
+
+            if (!isGrounded)
+            {
+                BeginAirborneTracking();
+            }
+
+            return;
+        }
+
+        if (wasGrounded && !isGrounded)
+        {
+            BeginAirborneTracking();
+            return;
+        }
+
+        if (!wasGrounded && isGrounded)
+        {
+            RegisterLanding();
+        }
+    }
+
     private void UpdateGroundInfo()
     {
         if (capsuleCollider == null)
@@ -400,6 +459,61 @@ public class PlayerMotor : MonoBehaviour
 
         groundNormal = Vector3.up;
         isGrounded = false;
+    }
+
+    private void BeginAirborneTracking()
+    {
+        airborneStartTime = Time.time;
+        airborneStartedWithMoveInput = HasMeaningfulMoveInput();
+        maxDownwardSpeedWhileAirborne = 0f;
+
+        if (rigidbodyComponent != null)
+        {
+            maxDownwardSpeedWhileAirborne = Mathf.Max(maxDownwardSpeedWhileAirborne, -rigidbodyComponent.linearVelocity.y);
+        }
+    }
+
+    private void TrackAirborneMetrics()
+    {
+        if (rigidbodyComponent == null)
+        {
+            return;
+        }
+
+        maxDownwardSpeedWhileAirborne = Mathf.Max(maxDownwardSpeedWhileAirborne, -rigidbodyComponent.linearVelocity.y);
+    }
+
+    private void RegisterLanding()
+    {
+        if (Time.time - airborneStartTime < minLandingAirTime)
+        {
+            airborneStartedWithMoveInput = false;
+            maxDownwardSpeedWhileAirborne = 0f;
+            return;
+        }
+
+        bool useRunLanding = airborneStartedWithMoveInput && HasMeaningfulMoveInput();
+        bool useHighLanding = maxDownwardSpeedWhileAirborne >= highLandingMinFallSpeed;
+
+        if (useRunLanding)
+        {
+            lastLandingAnimationType = useHighLanding ? LandingAnimationType.HighRun : LandingAnimationType.LowRun;
+        }
+        else
+        {
+            lastLandingAnimationType = useHighLanding ? LandingAnimationType.HighIdle : LandingAnimationType.LowIdle;
+        }
+
+        landingEventVersion++;
+        airborneStartTime = float.NegativeInfinity;
+        airborneStartedWithMoveInput = false;
+        maxDownwardSpeedWhileAirborne = 0f;
+    }
+
+    private bool HasMeaningfulMoveInput()
+    {
+        float threshold = landingMoveInputThreshold * landingMoveInputThreshold;
+        return MoveInput.sqrMagnitude >= threshold;
     }
 
     private float GetGroundProbeRadius()

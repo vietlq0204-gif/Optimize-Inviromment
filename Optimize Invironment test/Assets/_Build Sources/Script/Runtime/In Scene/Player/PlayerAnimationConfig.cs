@@ -7,6 +7,10 @@ public sealed class PlayerAnimationConfig : ScriptableObject
     [SerializeField] private string velocityParameter = "Velocity";
     [SerializeField] private string groundedParameter = "Grounded";
     [SerializeField] private string jumpingParameter = "Jumping";
+    [SerializeField] private string lowIdleLandingTrigger = "LandLowIdle";
+    [SerializeField] private string highIdleLandingTrigger = "LandHighIdle";
+    [SerializeField] private string lowRunLandingTrigger = "LandLowRun";
+    [SerializeField] private string highRunLandingTrigger = "LandHighRun";
     [SerializeField] private float dampTime = 0.1f;
 
     [Header("Speed Thresholds")]
@@ -18,6 +22,10 @@ public sealed class PlayerAnimationConfig : ScriptableObject
     public string VelocityParameter => velocityParameter;
     public string GroundedParameter => groundedParameter;
     public string JumpingParameter => jumpingParameter;
+    public string LowIdleLandingTrigger => lowIdleLandingTrigger;
+    public string HighIdleLandingTrigger => highIdleLandingTrigger;
+    public string LowRunLandingTrigger => lowRunLandingTrigger;
+    public string HighRunLandingTrigger => highRunLandingTrigger;
     public float DampTime => dampTime;
     public float IdleSpeedThreshold => idleSpeedThreshold;
     public float WalkSpeedThreshold => walkSpeedThreshold;
