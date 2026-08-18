@@ -27,6 +27,8 @@ public class CameraController : MonoBehaviour
     [SerializeField] private float maxPitch = 60f;
     [SerializeField] private float lookAtHeight = 1.5f;
     [SerializeField] private float mouseDeltaScale = 0.02f;
+    [SerializeField] private bool invertXAxis;
+    [SerializeField] private bool invertYAxis;
 
     [Header("Camera Blur")]
     [SerializeField] private bool enableCameraBlur = true;
@@ -62,6 +64,18 @@ public class CameraController : MonoBehaviour
     {
         get => enableCameraBlur;
         set => enableCameraBlur = value;
+    }
+
+    public bool InvertXAxis
+    {
+        get => invertXAxis;
+        set => invertXAxis = value;
+    }
+
+    public bool InvertYAxis
+    {
+        get => invertYAxis;
+        set => invertYAxis = value;
     }
 
     public float BlurDistance
@@ -171,7 +185,15 @@ public class CameraController : MonoBehaviour
 
     private Vector2 ReadLookInput()
     {
-        return inputReader != null ? inputReader.LookInput * mouseDeltaScale : Vector2.zero;
+        if (inputReader == null)
+        {
+            return Vector2.zero;
+        }
+
+        Vector2 look = inputReader.LookInput * mouseDeltaScale;
+        look.x *= invertXAxis ? -1f : 1f;
+        look.y *= invertYAxis ? -1f : 1f;
+        return look;
     }
 
     private void ResolveInputReader()
