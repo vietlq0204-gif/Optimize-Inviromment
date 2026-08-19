@@ -38,6 +38,9 @@ public class PlayerMotor : MonoBehaviour
     [SerializeField] private float highLandingMinFallSpeed = 10f;
     [SerializeField] [Range(0f, 1f)] private float landingMoveInputThreshold = 0.25f;
 
+    [Header("Run End Animation")]
+    [SerializeField] private float runEndMinPlanarSpeed = 7f;
+
     [Header("Gravity")]
     [SerializeField] private bool overrideRigidbodyGravity;
     [SerializeField] private Vector3 gravityOverride = new Vector3(0f, -9.81f, 0f);
@@ -67,6 +70,8 @@ public class PlayerMotor : MonoBehaviour
     private float maxDownwardSpeedWhileAirborne;
     private int landingEventVersion;
     private LandingAnimationType lastLandingAnimationType;
+    private bool hadMeaningfulMoveInputLastFixedUpdate;
+    private int runEndEventVersion;
 
     public PlayerInputReader InputReader => playerInputReader;
     public Transform CameraTransform => cameraTransform;
@@ -74,6 +79,7 @@ public class PlayerMotor : MonoBehaviour
     public bool IsJumping => isJumping;
     public int LandingEventVersion => landingEventVersion;
     public LandingAnimationType LastLandingAnimationType => lastLandingAnimationType;
+    public int RunEndEventVersion => runEndEventVersion;
     public Vector3 GroundNormal => groundNormal;
     public float MoveSpeed => GetMoveSpeedSetting();
     public float RunSpeed => GetRunSpeedSetting();
@@ -124,6 +130,7 @@ public class PlayerMotor : MonoBehaviour
         minLandingAirTime = Mathf.Max(0f, minLandingAirTime);
         highLandingMinFallSpeed = Mathf.Max(0f, highLandingMinFallSpeed);
         landingMoveInputThreshold = Mathf.Clamp01(landingMoveInputThreshold);
+        runEndMinPlanarSpeed = Mathf.Max(0f, runEndMinPlanarSpeed);
         groundCheckDistance = Mathf.Max(0.05f, groundCheckDistance);
         groundCheckOffset = Mathf.Max(0f, groundCheckOffset);
         groundProbeRadiusScale = Mathf.Clamp(groundProbeRadiusScale, 0.1f, 1f);
@@ -150,9 +157,12 @@ public class PlayerMotor : MonoBehaviour
             return;
         }
 
+        bool hasMeaningfulMoveInput = HasMeaningfulMoveInput();
+        float planarSpeedBeforeMovement = CurrentPlanarSpeed;
         bool wasGrounded = isGrounded;
         UpdateGroundInfo();
         HandleGroundTransitions(wasGrounded);
+        HandleRunEnd(wasGrounded, hasMeaningfulMoveInput, planarSpeedBeforeMovement);
         HandleJump();
         HandleMovement();
         ApplyGravity();
@@ -162,6 +172,8 @@ public class PlayerMotor : MonoBehaviour
         {
             TrackAirborneMetrics();
         }
+
+        hadMeaningfulMoveInputLastFixedUpdate = hasMeaningfulMoveInput;
     }
 
     private bool HasRequiredComponents()
@@ -410,6 +422,26 @@ public class PlayerMotor : MonoBehaviour
         {
             RegisterLanding();
         }
+    }
+
+    private void HandleRunEnd(bool wasGrounded, bool hasMeaningfulMoveInput, float planarSpeedBeforeMovement)
+    {
+        if (!wasGrounded || !isGrounded || isJumping)
+        {
+            return;
+        }
+
+        if (hasMeaningfulMoveInput || !hadMeaningfulMoveInputLastFixedUpdate)
+        {
+            return;
+        }
+
+        if (planarSpeedBeforeMovement < runEndMinPlanarSpeed)
+        {
+            return;
+        }
+
+        runEndEventVersion++;
     }
 
     private void UpdateGroundInfo()

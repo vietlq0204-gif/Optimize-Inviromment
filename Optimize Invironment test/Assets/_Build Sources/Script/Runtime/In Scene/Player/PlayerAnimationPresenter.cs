@@ -7,6 +7,7 @@ public class PlayerAnimationPresenter : MonoBehaviour
     private const float WalkBlendPoint = 0.33333334f;
     private const float JogBlendPoint = 0.6666667f;
     private const float RunBlendPoint = 1f;
+
     [Header("Config")]
     [SerializeField] private PlayerAnimationConfig animationConfig;
 
@@ -46,7 +47,7 @@ public class PlayerAnimationPresenter : MonoBehaviour
     private bool hasHighRunLandingTrigger;
     private bool hasRunEndTrigger;
     private int lastConsumedLandingEventVersion;
-    private float previousRawVelocity;
+    private int lastConsumedRunEndEventVersion;
 
     protected virtual void Awake()
     {
@@ -74,12 +75,11 @@ public class PlayerAnimationPresenter : MonoBehaviour
             return;
         }
 
-        float rawVelocity = CalculateBlendVelocity();
-        animatorComponent.SetFloat(velocityParameterHash, rawVelocity, GetDampTimeSetting(), Time.deltaTime);
+        float normalizedVelocity = CalculateBlendVelocity();
+        animatorComponent.SetFloat(velocityParameterHash, normalizedVelocity, GetDampTimeSetting(), Time.deltaTime);
 
         if (playerMotor == null)
         {
-            previousRawVelocity = rawVelocity;
             return;
         }
 
@@ -93,14 +93,25 @@ public class PlayerAnimationPresenter : MonoBehaviour
             animatorComponent.SetBool(jumpingParameterHash, playerMotor.IsJumping);
         }
 
+        if (playerMotor.LandingEventVersion == lastConsumedLandingEventVersion)
+        {
+            if (playerMotor.RunEndEventVersion == lastConsumedRunEndEventVersion)
+            {
+                return;
+            }
+        }
+
         if (playerMotor.LandingEventVersion != lastConsumedLandingEventVersion)
         {
             lastConsumedLandingEventVersion = playerMotor.LandingEventVersion;
             TriggerLandingAnimation(playerMotor.LastLandingAnimationType);
         }
 
-        TryTriggerRunEnd(rawVelocity);
-        previousRawVelocity = rawVelocity;
+        if (playerMotor.RunEndEventVersion != lastConsumedRunEndEventVersion)
+        {
+            lastConsumedRunEndEventVersion = playerMotor.RunEndEventVersion;
+            TriggerRunEndAnimation();
+        }
     }
 
     private float CalculateBlendVelocity()
@@ -230,41 +241,6 @@ public class PlayerAnimationPresenter : MonoBehaviour
 
         animatorComponent.ResetTrigger(runEndTriggerHash);
         animatorComponent.SetTrigger(runEndTriggerHash);
-    }
-
-    private void TryTriggerRunEnd(float rawVelocity)
-    {
-        if (!hasRunEndTrigger || playerMotor == null)
-        {
-            return;
-        }
-
-        if (!playerMotor.IsGrounded || playerMotor.IsJumping)
-        {
-            return;
-        }
-
-        if (!WasRawVelocityInRunBand(previousRawVelocity) || IsRawVelocityInRunBand(rawVelocity))
-        {
-            return;
-        }
-
-        TriggerRunEndAnimation();
-    }
-
-    private bool WasRawVelocityInRunBand(float rawVelocity)
-    {
-        return IsRawVelocityInRunBand(rawVelocity);
-    }
-
-    private float GetJogBlendPointThreshold()
-    {
-        return JogBlendPoint - 0.0001f;
-    }
-
-    private bool IsRawVelocityInRunBand(float rawVelocity)
-    {
-        return rawVelocity > GetJogBlendPointThreshold();
     }
 
     private bool TryGetParameterHash(string parameterName, AnimatorControllerParameterType expectedType, out int parameterHash)
