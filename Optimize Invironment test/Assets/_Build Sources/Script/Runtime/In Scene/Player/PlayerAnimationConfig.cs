@@ -12,6 +12,8 @@ public sealed class PlayerAnimationConfig : ScriptableObject
     [SerializeField] private string lowRunLandingTrigger = "LandLowRun";
     [SerializeField] private string highRunLandingTrigger = "LandHighRun";
     [SerializeField] private string runEndTrigger = "RunEnd";
+    [SerializeField] private string runTurn180LeftTrigger = "RunTurn180Left";
+    [SerializeField] private string runTurn180RightTrigger = "RunTurn180Right";
     [SerializeField] private float dampTime = 0.1f;
 
     [Header("Speed Thresholds")]
@@ -28,6 +30,8 @@ public sealed class PlayerAnimationConfig : ScriptableObject
     public string LowRunLandingTrigger => lowRunLandingTrigger;
     public string HighRunLandingTrigger => highRunLandingTrigger;
     public string RunEndTrigger => runEndTrigger;
+    public string RunTurn180LeftTrigger => runTurn180LeftTrigger;
+    public string RunTurn180RightTrigger => runTurn180RightTrigger;
     public float DampTime => dampTime;
     public float IdleSpeedThreshold => idleSpeedThreshold;
     public float WalkSpeedThreshold => walkSpeedThreshold;
