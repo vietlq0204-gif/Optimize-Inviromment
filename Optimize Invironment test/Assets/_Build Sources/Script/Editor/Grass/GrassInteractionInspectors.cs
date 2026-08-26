@@ -102,6 +102,18 @@ public sealed class GrassInteractionConfigEditor : Editor
 [CanEditMultipleObjects]
 public sealed class EnvironmentInteractorEditor : Editor
 {
+    private static readonly string[] InteractorConfigPropertyNames =
+    {
+        "heightOffset",
+        "contactRadius",
+        "contactStrength",
+        "trailRadius",
+        "trailStrength",
+        "minimumTrailDistance",
+        "emitWhileStationary",
+        "suppressRecoveryWhileStationary",
+    };
+
     public override void OnInspectorGUI()
     {
         serializedObject.Update();
@@ -113,6 +125,21 @@ public sealed class EnvironmentInteractorEditor : Editor
         SerializedProperty config = serializedObject.FindProperty("interactionConfig");
         bool hasLocalConfig = config != null && !config.hasMultipleDifferentValues && config.objectReferenceValue != null;
 
+        using (new EditorGUI.DisabledScope(!CanWriteInteractorValuesToConfig(config)))
+        {
+            if (GUILayout.Button("Ghi gia tri Interactor vao Config dang gan"))
+            {
+                WriteInteractorValuesToAttachedConfigs();
+            }
+        }
+
+        if (hasLocalConfig)
+        {
+            EditorGUILayout.HelpBox(
+                "Cac field ben duoi co the dung de staging gia tri. Bam nut tren de ghi de chung vao GrassInteractionConfig dang gan.",
+                MessageType.None);
+        }
+
         DrawSection("Config");
         GrassInteractionConfigEditor.DrawProperty(
             serializedObject,
@@ -123,7 +150,7 @@ public sealed class EnvironmentInteractorEditor : Editor
         if (hasLocalConfig)
         {
             EditorGUILayout.HelpBox(
-                "Source này đang dùng GrassInteractionConfig. Các field fallback về bán kính, lực và hành vi bên dưới được khóa vì thay đổi chúng sẽ không có tác dụng.",
+                "Source nay dang dung GrassInteractionConfig. Cac field fallback ben duoi chi la gia tri staging; bam nut ghi de neu muon copy chung vao SO.",
                 MessageType.Info);
         }
         else
@@ -138,7 +165,7 @@ public sealed class EnvironmentInteractorEditor : Editor
 
         DrawSection("Vùng tiếp xúc");
         GrassInteractionConfigEditor.DrawProperty(serializedObject, "emitContactShape", "Bật vùng tiếp xúc", "Bật hoặc tắt vùng đè trực tiếp quanh object.");
-        using (new EditorGUI.DisabledScope(hasLocalConfig))
+        using (new EditorGUI.DisabledScope(false))
         {
             GrassInteractionConfigEditor.DrawProperty(serializedObject, "heightOffset", "Lệch độ cao", "Fallback khi không có config. Độ lệch điểm ghi interaction so với vị trí object.");
             GrassInteractionConfigEditor.DrawProperty(serializedObject, "contactRadius", "Bán kính tiếp xúc", "Fallback khi không có config. Bán kính vùng cỏ bị đè trực tiếp.");
@@ -147,7 +174,7 @@ public sealed class EnvironmentInteractorEditor : Editor
 
         DrawSection("Vệt di chuyển");
         GrassInteractionConfigEditor.DrawProperty(serializedObject, "emitTrailShape", "Bật vệt di chuyển", "Bật hoặc tắt vệt cỏ khi object di chuyển.");
-        using (new EditorGUI.DisabledScope(hasLocalConfig))
+        using (new EditorGUI.DisabledScope(false))
         {
             GrassInteractionConfigEditor.DrawProperty(serializedObject, "trailRadius", "Bán kính vệt", "Fallback khi không có config. Bán kính vệt cỏ phía sau object.");
             GrassInteractionConfigEditor.DrawProperty(serializedObject, "trailStrength", "Lực vệt", "Fallback khi không có config. Cường độ vệt cỏ.");
@@ -155,7 +182,7 @@ public sealed class EnvironmentInteractorEditor : Editor
         }
 
         DrawSection("Hành vi");
-        using (new EditorGUI.DisabledScope(hasLocalConfig))
+        using (new EditorGUI.DisabledScope(false))
         {
             GrassInteractionConfigEditor.DrawProperty(serializedObject, "emitWhileStationary", "Ghi khi đứng yên", "Fallback khi không có config. Vẫn ghi contact khi object đứng yên.");
             GrassInteractionConfigEditor.DrawProperty(serializedObject, "suppressRecoveryWhileStationary", "Chặn hồi khi đứng yên", "Fallback khi không có config. Ngăn cỏ hồi lại khi object đứng trên cỏ.");
@@ -178,6 +205,71 @@ public sealed class EnvironmentInteractorEditor : Editor
     {
         EditorGUILayout.Space(8f);
         EditorGUILayout.LabelField(title, EditorStyles.boldLabel);
+    }
+
+    private static bool CanWriteInteractorValuesToConfig(SerializedProperty config)
+    {
+        return config != null && !config.hasMultipleDifferentValues && config.objectReferenceValue != null;
+    }
+
+    private void WriteInteractorValuesToAttachedConfigs()
+    {
+        int updatedCount = 0;
+        foreach (Object selectedTarget in targets)
+        {
+            if (selectedTarget == null)
+            {
+                continue;
+            }
+
+            SerializedObject interactorObject = new SerializedObject(selectedTarget);
+            SerializedProperty configProperty = interactorObject.FindProperty("interactionConfig");
+            GrassInteractionConfig config = configProperty != null
+                ? configProperty.objectReferenceValue as GrassInteractionConfig
+                : null;
+
+            if (config == null)
+            {
+                continue;
+            }
+
+            SerializedObject configObject = new SerializedObject(config);
+            Undo.RecordObject(config, "Write Interactor Values To Config");
+
+            for (int i = 0; i < InteractorConfigPropertyNames.Length; i++)
+            {
+                CopyPropertyValue(interactorObject, configObject, InteractorConfigPropertyNames[i]);
+            }
+
+            configObject.ApplyModifiedProperties();
+            EditorUtility.SetDirty(config);
+            updatedCount++;
+        }
+
+        if (updatedCount > 0)
+        {
+            AssetDatabase.SaveAssets();
+        }
+    }
+
+    private static void CopyPropertyValue(SerializedObject sourceObject, SerializedObject destinationObject, string propertyName)
+    {
+        SerializedProperty source = sourceObject.FindProperty(propertyName);
+        SerializedProperty destination = destinationObject.FindProperty(propertyName);
+        if (source == null || destination == null || source.propertyType != destination.propertyType)
+        {
+            return;
+        }
+
+        switch (source.propertyType)
+        {
+            case SerializedPropertyType.Boolean:
+                destination.boolValue = source.boolValue;
+                break;
+            case SerializedPropertyType.Float:
+                destination.floatValue = source.floatValue;
+                break;
+        }
     }
 }
 

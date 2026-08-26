@@ -12,8 +12,8 @@ using UnityEditor;
 /// </summary>
 [ExecuteAlways]
 [DisallowMultipleComponent]
-[AddComponentMenu("Environment/Interaction Interactor")]
-public class EnvironmentInteractor : MonoBehaviour
+[AddComponentMenu("Environment/Environment Interactor")]
+public class EnvironmentInteractor : MonoBehaviour  
 {
     private const float DebugDrawHeightOffset = 0.03f;
 
