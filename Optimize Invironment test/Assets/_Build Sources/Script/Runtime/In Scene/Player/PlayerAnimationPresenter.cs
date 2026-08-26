@@ -20,8 +20,6 @@ public class PlayerAnimationPresenter : MonoBehaviour
     [SerializeField] private string lowRunLandingTrigger = "LandLowRun";
     [SerializeField] private string highRunLandingTrigger = "LandHighRun";
     [SerializeField] private string runEndTrigger = "RunEnd";
-    [SerializeField] private string runTurn180LeftTrigger = "RunTurn180Left";
-    [SerializeField] private string runTurn180RightTrigger = "RunTurn180Right";
     [SerializeField] private float dampTime = 0.1f;
 
     [Header("Speed Thresholds")]
@@ -41,8 +39,6 @@ public class PlayerAnimationPresenter : MonoBehaviour
     private int lowRunLandingTriggerHash;
     private int highRunLandingTriggerHash;
     private int runEndTriggerHash;
-    private int runTurn180LeftTriggerHash;
-    private int runTurn180RightTriggerHash;
     private bool hasGroundedParameter;
     private bool hasJumpingParameter;
     private bool hasLowIdleLandingTrigger;
@@ -50,11 +46,8 @@ public class PlayerAnimationPresenter : MonoBehaviour
     private bool hasLowRunLandingTrigger;
     private bool hasHighRunLandingTrigger;
     private bool hasRunEndTrigger;
-    private bool hasRunTurn180LeftTrigger;
-    private bool hasRunTurn180RightTrigger;
     private int lastConsumedLandingEventVersion;
     private int lastConsumedRunEndEventVersion;
-    private int lastConsumedRunTurnEventVersion;
 
     protected virtual void Awake()
     {
@@ -104,10 +97,7 @@ public class PlayerAnimationPresenter : MonoBehaviour
         {
             if (playerMotor.RunEndEventVersion == lastConsumedRunEndEventVersion)
             {
-                if (playerMotor.RunTurnEventVersion == lastConsumedRunTurnEventVersion)
-                {
-                    return;
-                }
+                return;
             }
         }
 
@@ -117,20 +107,10 @@ public class PlayerAnimationPresenter : MonoBehaviour
             TriggerLandingAnimation(playerMotor.LastLandingAnimationType);
         }
 
-        bool hasNewRunTurnEvent = playerMotor.RunTurnEventVersion != lastConsumedRunTurnEventVersion;
-        if (hasNewRunTurnEvent)
-        {
-            lastConsumedRunTurnEventVersion = playerMotor.RunTurnEventVersion;
-            TriggerRunTurnAnimation(playerMotor.LastRunTurnAnimationType);
-        }
-
         if (playerMotor.RunEndEventVersion != lastConsumedRunEndEventVersion)
         {
             lastConsumedRunEndEventVersion = playerMotor.RunEndEventVersion;
-            if (!hasNewRunTurnEvent)
-            {
-                TriggerRunEndAnimation();
-            }
+            TriggerRunEndAnimation();
         }
     }
 
@@ -190,8 +170,6 @@ public class PlayerAnimationPresenter : MonoBehaviour
         hasLowRunLandingTrigger = TryGetParameterHash(GetLowRunLandingTriggerSetting(), AnimatorControllerParameterType.Trigger, out lowRunLandingTriggerHash);
         hasHighRunLandingTrigger = TryGetParameterHash(GetHighRunLandingTriggerSetting(), AnimatorControllerParameterType.Trigger, out highRunLandingTriggerHash);
         hasRunEndTrigger = TryGetParameterHash(GetRunEndTriggerSetting(), AnimatorControllerParameterType.Trigger, out runEndTriggerHash);
-        hasRunTurn180LeftTrigger = TryGetParameterHash(GetRunTurn180LeftTriggerSetting(), AnimatorControllerParameterType.Trigger, out runTurn180LeftTriggerHash);
-        hasRunTurn180RightTrigger = TryGetParameterHash(GetRunTurn180RightTriggerSetting(), AnimatorControllerParameterType.Trigger, out runTurn180RightTriggerHash);
     }
 
     private void TriggerLandingAnimation(PlayerMotor.LandingAnimationType landingAnimationType)
@@ -265,47 +243,6 @@ public class PlayerAnimationPresenter : MonoBehaviour
         animatorComponent.SetTrigger(runEndTriggerHash);
     }
 
-    private void TriggerRunTurnAnimation(PlayerMotor.RunTurnAnimationType runTurnAnimationType)
-    {
-        ResetRunTurnTriggers();
-
-        if (hasRunEndTrigger)
-        {
-            animatorComponent.ResetTrigger(runEndTriggerHash);
-        }
-
-        switch (runTurnAnimationType)
-        {
-            case PlayerMotor.RunTurnAnimationType.Left180:
-                if (hasRunTurn180LeftTrigger)
-                {
-                    animatorComponent.SetTrigger(runTurn180LeftTriggerHash);
-                }
-
-                break;
-            case PlayerMotor.RunTurnAnimationType.Right180:
-                if (hasRunTurn180RightTrigger)
-                {
-                    animatorComponent.SetTrigger(runTurn180RightTriggerHash);
-                }
-
-                break;
-        }
-    }
-
-    private void ResetRunTurnTriggers()
-    {
-        if (hasRunTurn180LeftTrigger)
-        {
-            animatorComponent.ResetTrigger(runTurn180LeftTriggerHash);
-        }
-
-        if (hasRunTurn180RightTrigger)
-        {
-            animatorComponent.ResetTrigger(runTurn180RightTriggerHash);
-        }
-    }
-
     private bool TryGetParameterHash(string parameterName, AnimatorControllerParameterType expectedType, out int parameterHash)
     {
         parameterHash = 0;
@@ -338,8 +275,6 @@ public class PlayerAnimationPresenter : MonoBehaviour
     private string GetLowRunLandingTriggerSetting() => animationConfig != null ? animationConfig.LowRunLandingTrigger : lowRunLandingTrigger;
     private string GetHighRunLandingTriggerSetting() => animationConfig != null ? animationConfig.HighRunLandingTrigger : highRunLandingTrigger;
     private string GetRunEndTriggerSetting() => animationConfig != null ? animationConfig.RunEndTrigger : runEndTrigger;
-    private string GetRunTurn180LeftTriggerSetting() => animationConfig != null ? animationConfig.RunTurn180LeftTrigger : runTurn180LeftTrigger;
-    private string GetRunTurn180RightTriggerSetting() => animationConfig != null ? animationConfig.RunTurn180RightTrigger : runTurn180RightTrigger;
     private float GetDampTimeSetting() => animationConfig != null ? animationConfig.DampTime : dampTime;
     private float GetIdleSpeedThresholdSetting() => animationConfig != null ? animationConfig.IdleSpeedThreshold : idleSpeedThreshold;
     private float GetWalkSpeedThresholdSetting() => animationConfig != null ? animationConfig.WalkSpeedThreshold : walkSpeedThreshold;

@@ -15,13 +15,6 @@ public class PlayerMotor : MonoBehaviour
         HighRun = 4
     }
 
-    public enum RunTurnAnimationType
-    {
-        None = 0,
-        Left180 = 1,
-        Right180 = 2
-    }
-
     [Header("References")]
     [SerializeField] private Transform cameraTransform;
     [SerializeField] private PlayerMovementConfig movementConfig;
@@ -47,13 +40,6 @@ public class PlayerMotor : MonoBehaviour
 
     [Header("Run End Animation")]
     [SerializeField] private float runEndMinPlanarSpeed = 7f;
-    [SerializeField] private float runEndInputReleaseDelay = 0.1f;
-
-    [Header("Run Turn Animation")]
-    [SerializeField] private float runTurnMinPlanarSpeed = 7f;
-    [SerializeField] [Range(-1f, -0.1f)] private float runTurnOppositeDotThreshold = -0.8f;
-    [SerializeField] private float runTurnTriggerCooldown = 0.75f;
-    [SerializeField] [Range(0f, 1f)] private float runTurnSideDeadZone = 0.1f;
 
     [Header("Gravity")]
     [SerializeField] private bool overrideRigidbodyGravity;
@@ -86,12 +72,6 @@ public class PlayerMotor : MonoBehaviour
     private LandingAnimationType lastLandingAnimationType;
     private bool hadMeaningfulMoveInputLastFixedUpdate;
     private int runEndEventVersion;
-    private int runTurnEventVersion;
-    private RunTurnAnimationType lastRunTurnAnimationType;
-    private bool hadRunTurnInputLastFixedUpdate;
-    private float lastRunTurnTriggerTime = float.NegativeInfinity;
-    private int lastRunTurnDirectionSign = 1;
-    private float lastMeaningfulMoveInputTime = float.NegativeInfinity;
 
     public PlayerInputReader InputReader => playerInputReader;
     public Transform CameraTransform => cameraTransform;
@@ -100,8 +80,6 @@ public class PlayerMotor : MonoBehaviour
     public int LandingEventVersion => landingEventVersion;
     public LandingAnimationType LastLandingAnimationType => lastLandingAnimationType;
     public int RunEndEventVersion => runEndEventVersion;
-    public int RunTurnEventVersion => runTurnEventVersion;
-    public RunTurnAnimationType LastRunTurnAnimationType => lastRunTurnAnimationType;
     public Vector3 GroundNormal => groundNormal;
     public float MoveSpeed => GetMoveSpeedSetting();
     public float RunSpeed => GetRunSpeedSetting();
@@ -153,11 +131,6 @@ public class PlayerMotor : MonoBehaviour
         highLandingMinFallSpeed = Mathf.Max(0f, highLandingMinFallSpeed);
         landingMoveInputThreshold = Mathf.Clamp01(landingMoveInputThreshold);
         runEndMinPlanarSpeed = Mathf.Max(0f, runEndMinPlanarSpeed);
-        runEndInputReleaseDelay = Mathf.Max(0f, runEndInputReleaseDelay);
-        runTurnMinPlanarSpeed = Mathf.Max(0f, runTurnMinPlanarSpeed);
-        runTurnOppositeDotThreshold = Mathf.Clamp(runTurnOppositeDotThreshold, -1f, -0.1f);
-        runTurnTriggerCooldown = Mathf.Max(0f, runTurnTriggerCooldown);
-        runTurnSideDeadZone = Mathf.Clamp01(runTurnSideDeadZone);
         groundCheckDistance = Mathf.Max(0.05f, groundCheckDistance);
         groundCheckOffset = Mathf.Max(0f, groundCheckOffset);
         groundProbeRadiusScale = Mathf.Clamp(groundProbeRadiusScale, 0.1f, 1f);
@@ -185,16 +158,10 @@ public class PlayerMotor : MonoBehaviour
         }
 
         bool hasMeaningfulMoveInput = HasMeaningfulMoveInput();
-        if (hasMeaningfulMoveInput)
-        {
-            lastMeaningfulMoveInputTime = Time.time;
-        }
-
         float planarSpeedBeforeMovement = CurrentPlanarSpeed;
         bool wasGrounded = isGrounded;
         UpdateGroundInfo();
         HandleGroundTransitions(wasGrounded);
-        HandleRunTurn(hasMeaningfulMoveInput, planarSpeedBeforeMovement);
         HandleRunEnd(wasGrounded, hasMeaningfulMoveInput, planarSpeedBeforeMovement);
         HandleJump();
         HandleMovement();
@@ -286,7 +253,7 @@ public class PlayerMotor : MonoBehaviour
             return Vector3.zero;
         }
 
-        if (GetKeepWorldUpAlignedSetting() || !isGrounded)
+        if (!isGrounded)
         {
             return inputDirection.normalized;
         }
@@ -294,7 +261,7 @@ public class PlayerMotor : MonoBehaviour
         Vector3 projectedDirection = Vector3.ProjectOnPlane(inputDirection, groundNormal);
         if (projectedDirection.sqrMagnitude <= 0.0001f)
         {
-            return Vector3.zero;
+            return inputDirection.normalized;
         }
 
         return projectedDirection.normalized;
@@ -336,8 +303,30 @@ public class PlayerMotor : MonoBehaviour
     {
         Vector3 desiredMoveDirection = GetDesiredMoveDirection();
         Vector3 velocity = desiredMoveDirection * GetCurrentMoveSpeed();
-        velocity.y = GetTargetVerticalVelocity();
+
+        if (isGrounded)
+        {
+            velocity = GetGroundedVelocity(velocity);
+        }
+        else
+        {
+            velocity.y = GetTargetVerticalVelocity();
+        }
+
         rigidbodyComponent.linearVelocity = velocity;
+    }
+
+    private Vector3 GetGroundedVelocity(Vector3 targetVelocity)
+    {
+        Vector3 tangentVelocity = Vector3.ProjectOnPlane(targetVelocity, groundNormal);
+        float groundStickSpeed = Mathf.Abs(GetGroundedVerticalVelocitySetting());
+
+        if (groundStickSpeed <= 0f)
+        {
+            return tangentVelocity;
+        }
+
+        return tangentVelocity - groundNormal * groundStickSpeed;
     }
 
     private void HandleJump()
@@ -474,74 +463,7 @@ public class PlayerMotor : MonoBehaviour
             return;
         }
 
-        if (Time.time - lastMeaningfulMoveInputTime < runEndInputReleaseDelay)
-        {
-            return;
-        }
-
-        if (HasRunTurnIntent(hasMeaningfulMoveInput, planarSpeedBeforeMovement, out _))
-        {
-            return;
-        }
-
         runEndEventVersion++;
-    }
-
-    private void HandleRunTurn(bool hasMeaningfulMoveInput, float planarSpeedBeforeMovement)
-    {
-        if (!HasRunTurnIntent(hasMeaningfulMoveInput, planarSpeedBeforeMovement, out Vector3 desiredMoveDirection))
-        {
-            hadRunTurnInputLastFixedUpdate = false;
-            return;
-        }
-
-        if (hadRunTurnInputLastFixedUpdate || Time.time - lastRunTurnTriggerTime < runTurnTriggerCooldown)
-        {
-            hadRunTurnInputLastFixedUpdate = true;
-            return;
-        }
-
-        lastRunTurnAnimationType = ResolveRunTurnAnimationType(desiredMoveDirection);
-        if (lastRunTurnAnimationType == RunTurnAnimationType.None)
-        {
-            return;
-        }
-
-        runTurnEventVersion++;
-        lastRunTurnTriggerTime = Time.time;
-        hadRunTurnInputLastFixedUpdate = true;
-    }
-
-    private bool HasRunTurnIntent(bool hasMeaningfulMoveInput, float planarSpeedBeforeMovement, out Vector3 desiredMoveDirection)
-    {
-        desiredMoveDirection = Vector3.zero;
-
-        if (!isGrounded || isJumping || !GetRotateTowardsMovementSetting())
-        {
-            return false;
-        }
-
-        if (!hasMeaningfulMoveInput || !IsSprinting || IsCrouching || planarSpeedBeforeMovement < runTurnMinPlanarSpeed)
-        {
-            return false;
-        }
-
-        desiredMoveDirection = GetDesiredMoveDirection();
-        if (desiredMoveDirection.sqrMagnitude <= 0.0001f)
-        {
-            return false;
-        }
-
-        Vector3 upAxis = GetKeepWorldUpAlignedSetting() ? Vector3.up : groundNormal;
-        Vector3 currentForward = Vector3.ProjectOnPlane(transform.forward, upAxis);
-        if (currentForward.sqrMagnitude <= 0.0001f)
-        {
-            return false;
-        }
-
-        currentForward.Normalize();
-        float directionDot = Vector3.Dot(currentForward, desiredMoveDirection);
-        return directionDot <= runTurnOppositeDotThreshold;
     }
 
     private void UpdateGroundInfo()
@@ -646,25 +568,6 @@ public class PlayerMotor : MonoBehaviour
     {
         float threshold = landingMoveInputThreshold * landingMoveInputThreshold;
         return MoveInput.sqrMagnitude >= threshold;
-    }
-
-    private RunTurnAnimationType ResolveRunTurnAnimationType(Vector3 desiredMoveDirection)
-    {
-        Vector3 localMoveDirection = transform.InverseTransformDirection(desiredMoveDirection);
-        float sideValue = localMoveDirection.x;
-
-        if (Mathf.Abs(sideValue) <= runTurnSideDeadZone)
-        {
-            sideValue = MoveInput.x;
-        }
-
-        if (Mathf.Abs(sideValue) <= runTurnSideDeadZone)
-        {
-            sideValue = lastRunTurnDirectionSign;
-        }
-
-        lastRunTurnDirectionSign = sideValue < 0f ? -1 : 1;
-        return sideValue < 0f ? RunTurnAnimationType.Left180 : RunTurnAnimationType.Right180;
     }
 
     private float GetGroundProbeRadius()
