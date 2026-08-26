@@ -598,37 +598,44 @@ public class EnvironmentInteractor : MonoBehaviour
 #if UNITY_EDITOR
     private void DrawDebugShapesInternal(bool isSelected)
     {
-        Vector3 baseContactPosition = hasLastState ? stableContactPosition : transform.position + Vector3.up * heightOffset;
+        float configuredHeightOffset = GetHeightOffset();
+        float configuredContactRadius = GetContactRadius();
+        float configuredContactStrength = GetContactStrength();
+        float configuredTrailRadius = GetTrailRadius();
+        float configuredTrailStrength = GetTrailStrength();
+        bool configuredEmitWhileStationary = GetEmitWhileStationary();
+
+        Vector3 baseContactPosition = transform.position + Vector3.up * configuredHeightOffset;
         Vector3 baseTrailStartPosition = hasLastState ? previousContactPosition : baseContactPosition;
         Vector3 contactPosition = baseContactPosition + Vector3.up * DebugDrawHeightOffset;
         Vector3 trailStartPosition = baseTrailStartPosition + Vector3.up * DebugDrawHeightOffset;
-        bool isActive = emitWhileStationary || rootTransformChanged || hasRenderableTrail;
+        bool isActive = configuredEmitWhileStationary || rootTransformChanged || hasRenderableTrail;
 
         Color contactColor = GetDebugColor(debugContactColor, isActive, isSelected);
         Color trailColor = GetDebugColor(debugTrailColor, isActive && hasRenderableTrail, isSelected);
         Color velocityColor = GetDebugColor(debugVelocityColor, planarSpeed > 0.0001f, isSelected);
 
-        if (emitContactShape && contactRadius > 0f)
+        if (emitContactShape && configuredContactRadius > 0f)
         {
-            DrawDisc(contactPosition, contactRadius, contactColor);
+            DrawDisc(contactPosition, configuredContactRadius, contactColor);
         }
 
-        if (emitTrailShape && trailRadius > 0f)
+        if (emitTrailShape && configuredTrailRadius > 0f)
         {
             if (hasRenderableTrail)
             {
-                DrawCapsule(trailStartPosition, contactPosition, trailRadius, trailColor);
+                DrawCapsule(trailStartPosition, contactPosition, configuredTrailRadius, trailColor);
             }
             else
             {
-                DrawDisc(contactPosition, trailRadius, new Color(trailColor.r, trailColor.g, trailColor.b, trailColor.a * 0.35f));
+                DrawDisc(contactPosition, configuredTrailRadius, new Color(trailColor.r, trailColor.g, trailColor.b, trailColor.a * 0.35f));
             }
         }
 
         if (drawDebugVelocity && planarSpeed > 0.0001f)
         {
             Vector3 direction = new Vector3(stablePlanarDirection.x, 0f, stablePlanarDirection.y);
-            float arrowLength = Mathf.Clamp(planarSpeed * 0.1f, Mathf.Max(contactRadius, 0.2f), Mathf.Max(contactRadius, trailRadius) * 2.5f);
+            float arrowLength = Mathf.Clamp(planarSpeed * 0.1f, Mathf.Max(configuredContactRadius, 0.2f), Mathf.Max(configuredContactRadius, configuredTrailRadius) * 2.5f);
             DrawArrow(contactPosition, direction, arrowLength, velocityColor);
         }
 
@@ -637,11 +644,11 @@ public class EnvironmentInteractor : MonoBehaviour
             return;
         }
 
-        Vector3 labelPosition = contactPosition + Vector3.up * Mathf.Max(0.35f, Mathf.Max(contactRadius, trailRadius) * 0.25f);
+        Vector3 labelPosition = contactPosition + Vector3.up * Mathf.Max(0.35f, Mathf.Max(configuredContactRadius, configuredTrailRadius) * 0.25f);
         string label =
             "Interactor\n" +
-            "contact r=" + contactRadius.ToString("0.00") + " s=" + contactStrength.ToString("0.00") + "\n" +
-            "trail r=" + trailRadius.ToString("0.00") + " s=" + trailStrength.ToString("0.00") + "\n" +
+            "contact r=" + configuredContactRadius.ToString("0.00") + " s=" + configuredContactStrength.ToString("0.00") + "\n" +
+            "trail r=" + configuredTrailRadius.ToString("0.00") + " s=" + configuredTrailStrength.ToString("0.00") + "\n" +
             "speed=" + planarSpeed.ToString("0.00");
         Handles.Label(labelPosition, label);
     }

@@ -14,48 +14,44 @@ public sealed class GrassInteractionConfigEditor : Editor
         DrawScriptField(serializedObject);
 
         EditorGUILayout.HelpBox(
-            "Config này là nơi chính để chỉnh hành vi đè cỏ. Nếu gắn config này vào GrassInteractionSystem, phần Material Overrides sẽ ghi đè thông số trên material cỏ.",
+            "Config nay dieu khien tuong tac co. Neu gan vao EnvironmentInteractionSystem, phan Material Overrides se ghi de thong so tren material co bang global shader values.",
             MessageType.Info);
 
-        DrawSection("Ghi vùng tiếp xúc");
-        Draw("contactSoftness", "Độ mềm vùng tiếp xúc", "Độ mềm mép vùng đè. Thấp hơn tạo mép sắc hơn, cao hơn làm vùng đè loang mềm hơn.");
-        Draw("contactDirectionalInfluence", "Hướng tiếp xúc", "Mức ảnh hưởng của hướng di chuyển lên hướng cỏ bị đẩy. Chỉ thấy rõ khi Đẩy ngang lớn hơn 0 và object đang di chuyển.");
-        Draw("contactRecoveryWeight", "Hồi phục tiếp xúc", "Trọng số hồi phục của vùng tiếp xúc. Giảm về 0 để giảm hiệu ứng cỏ bật lại sau khi bị đè.");
+        DrawSection("Contact Writer");
+        Draw("contactSoftness", "Contact Softness", "Do mem mep vung de.");
+        Draw("contactDirectionalInfluence", "Contact Direction", "Muc anh huong cua huong di chuyen len vung contact.");
+        Draw("contactRecoveryWeight", "Contact Recovery", "Trong so phuc hoi cua vung contact.");
 
-        DrawSection("Ghi vệt đi qua");
-        Draw("trailSoftness", "Độ mềm vệt", "Độ mềm mép vệt cỏ phía sau khi object di chuyển.");
-        Draw("trailDirectionalInfluence", "Hướng vệt", "Mức ảnh hưởng của hướng di chuyển lên vệt cỏ bị kéo.");
-        Draw("trailRecoveryWeight", "Hồi phục vệt", "Trọng số hồi phục của vệt đi qua. Giảm về 0 để giảm hiệu ứng cỏ bật lại trong vệt.");
+        DrawSection("Trail Writer");
+        Draw("trailSoftness", "Trail Softness", "Do mem mep vet co.");
+        Draw("trailDirectionalInfluence", "Trail Direction", "Muc anh huong cua huong di chuyen len vet co.");
+        Draw("trailRecoveryWeight", "Trail Recovery", "Trong so phuc hoi cua vet co.");
 
-        DrawSection("Chuyển động");
-        Draw("minimumDirectionalSpeed", "Tốc độ tối thiểu", "Tốc độ phẳng tối thiểu để hệ thống xem object là đang di chuyển và tạo vệt trail.");
+        DrawSection("Motion");
+        Draw("minimumDirectionalSpeed", "Minimum Direction Speed", "Toc do phang toi thieu de xem object dang di chuyen.");
 
         DrawSection("Source / Interactor");
-        Draw("heightOffset", "Lệch độ cao", "Độ lệch độ cao của điểm ghi interaction so với vị trí object.");
-        Draw("contactRadius", "Bán kính tiếp xúc", "Bán kính vùng cỏ bị đè trực tiếp quanh object.");
-        Draw("contactStrength", "Lực tiếp xúc", "Cường độ vùng đè trực tiếp. Đặt 0 để tắt vùng contact.");
-        Draw("trailRadius", "Bán kính vệt", "Bán kính vệt cỏ phía sau khi object di chuyển.");
-        Draw("trailStrength", "Lực vệt", "Cường độ vệt cỏ. Đặt 0 để tắt trail.");
-        Draw("minimumTrailDistance", "Khoảng tạo vệt tối thiểu", "Quãng đường tối thiểu giữa hai frame để tạo vệt trail.");
-        Draw("emitWhileStationary", "Ghi khi đứng yên", "Vẫn ghi vùng contact khi object đứng yên trên cỏ.");
-        Draw("suppressRecoveryWhileStationary", "Chặn hồi khi đứng yên", "Khi object đứng yên trên cỏ, ngăn cỏ bật lại dưới chân.");
+        Draw("heightOffset", "Lech do cao", "Do lech diem ghi interaction so voi vi tri object.");
+        Draw("contactRadius", "Ban kinh tiep xuc", "Ban kinh vung co bi de truc tiep quanh object.");
+        Draw("contactStrength", "Luc tiep xuc", "Cuong do vung de truc tiep.");
+        Draw("trailRadius", "Ban kinh vet", "Ban kinh vet co phia sau khi object di chuyen.");
+        Draw("trailStrength", "Luc vet", "Cuong do vet co.");
+        Draw("minimumTrailDistance", "Khoang tao vet toi thieu", "Quang duong toi thieu giua hai frame de tao trail.");
+        Draw("emitWhileStationary", "Ghi khi dung yen", "Van ghi contact khi object dung yen tren co.");
+        Draw("suppressRecoveryWhileStationary", "Chan hoi khi dung yen", "Ngan co hoi lai khi object dung yen tren co.");
 
         DrawSection("Material / Shader");
-        Draw("overrideMaterialInteraction", "Ghi đè material", "Bật để GrassInteractionSystem đưa các thông số Material bên dưới vào shader bằng global values.");
-        Draw("enableInteraction", "Bật interaction", "Bật hoặc tắt toàn bộ phản ứng interaction của shader cỏ.");
-        Draw("interactionStrength", "Cường độ tổng", "Cường độ tổng của phản ứng cỏ trong shader.");
-        Draw("interactionPushAway", "Đẩy ngang", "Độ cỏ bị đẩy ngang ra khỏi tâm hoặc hướng tác động.");
-        Draw("interactionFlatten", "Ép xuống", "Độ cỏ bị ép xuống theo chiều dọc.");
-        Draw("interactionRadiusMultiplier", "Hệ số bán kính", "Hệ số thay đổi bán kính phản ứng trong shader.");
-        Draw("interactionVerticalRange", "Vùng cao nhận tác động", "Khoảng chiều cao quanh mặt đất được phép nhận interaction.");
-        Draw("interactionTrail", "Độ giữ vệt", "Mức giữ vệt trong shader. Tăng để vệt đi qua ảnh hưởng lâu hoặc mềm hơn.");
-        Draw("interactionRecoveryStrength", "Lực bật lại", "Biên độ rung hoặc bật lại khi cỏ hồi phục. Đặt 0 nếu không muốn hiệu ứng bật lại.");
-        Draw("interactionRecoveryFrequency", "Tần số bật lại", "Tần số rung hoặc bật lại khi cỏ hồi phục.");
-        Draw("interactionRecoveryNoiseScale", "Nhiễu pha hồi phục", "Tỉ lệ noise làm lệch pha hồi phục giữa các cụm cỏ.");
-
-        EditorGUILayout.HelpBox(
-            "Nếu muốn vệt cỏ bị đè hồi chậm hoặc gần như không hồi, chỉnh GrassInteractionSystem > Thời gian giữ vệt. Các thông số Recovery ở đây chủ yếu điều khiển hiệu ứng rung hoặc bật lại.",
-            MessageType.None);
+        Draw("overrideMaterialInteraction", "Ghi de material", "Cho phep system day config nay vao shader bang global values.");
+        Draw("enableInteraction", "Bat interaction", "Bat hoac tat phan ung interaction cua shader co.");
+        Draw("interactionStrength", "Cuong do tong", "Cuong do tong cua phan ung co trong shader.");
+        Draw("interactionPushAway", "Day ngang", "Do co bi day ngang ra khoi tam hoac huong tac dong.");
+        Draw("interactionFlatten", "Ep xuong", "Do co bi ep xuong theo chieu doc.");
+        Draw("interactionRadiusMultiplier", "He so ban kinh", "He so thay doi ban kinh phan ung trong shader.");
+        Draw("interactionVerticalRange", "Vung cao nhan tac dong", "Khoang chieu cao quanh mat dat duoc nhan interaction.");
+        Draw("interactionTrail", "Do giu vet", "Muc giu vet trong shader.");
+        Draw("interactionRecoveryStrength", "Luc bat lai", "Bien do rung hoac bat lai khi co hoi phuc.");
+        Draw("interactionRecoveryFrequency", "Tan so bat lai", "Tan so rung hoac bat lai khi co hoi phuc.");
+        Draw("interactionRecoveryNoiseScale", "Nhieu pha hoi phuc", "Ti le noise lam lech pha hoi phuc giua cac cum co.");
 
         serializedObject.ApplyModifiedProperties();
         EditorGUIUtility.labelWidth = previousLabelWidth;
@@ -102,18 +98,6 @@ public sealed class GrassInteractionConfigEditor : Editor
 [CanEditMultipleObjects]
 public sealed class EnvironmentInteractorEditor : Editor
 {
-    private static readonly string[] InteractorConfigPropertyNames =
-    {
-        "heightOffset",
-        "contactRadius",
-        "contactStrength",
-        "trailRadius",
-        "trailStrength",
-        "minimumTrailDistance",
-        "emitWhileStationary",
-        "suppressRecoveryWhileStationary",
-    };
-
     public override void OnInspectorGUI()
     {
         serializedObject.Update();
@@ -122,97 +106,102 @@ public sealed class EnvironmentInteractorEditor : Editor
 
         GrassInteractionConfigEditor.DrawScriptField(serializedObject);
 
-        SerializedProperty config = serializedObject.FindProperty("interactionConfig");
-        bool hasLocalConfig = config != null && !config.hasMultipleDifferentValues && config.objectReferenceValue != null;
-
-        using (new EditorGUI.DisabledScope(!CanWriteInteractorValuesToConfig(config)))
+        SerializedProperty configProperty = serializedObject.FindProperty("interactionConfig");
+        bool hasLocalConfig = configProperty != null &&
+                              !configProperty.hasMultipleDifferentValues &&
+                              configProperty.objectReferenceValue != null;
+        GrassInteractionConfig localConfig = hasLocalConfig
+            ? configProperty.objectReferenceValue as GrassInteractionConfig
+            : null;
+        SerializedObject valueObject = localConfig != null ? new SerializedObject(localConfig) : serializedObject;
+        if (valueObject != serializedObject)
         {
-            if (GUILayout.Button("Ghi gia tri Interactor vao Config dang gan"))
-            {
-                WriteInteractorValuesToAttachedConfigs();
-            }
+            valueObject.Update();
         }
 
-        if (hasLocalConfig)
+        using (new EditorGUI.DisabledScope(localConfig == null))
         {
-            EditorGUILayout.HelpBox(
-                "Cac field ben duoi co the dung de staging gia tri. Bam nut tren de ghi de chung vao GrassInteractionConfig dang gan.",
-                MessageType.None);
+            if (GUILayout.Button("Luu Config dang gan"))
+            {
+                SaveAttachedConfigs();
+            }
         }
 
         DrawSection("Config");
         GrassInteractionConfigEditor.DrawProperty(
             serializedObject,
             "interactionConfig",
-            "Config riêng",
-            "Config riêng cho source này. Nếu có giá trị, các field fallback bên dưới như bán kính hoặc lực sẽ bị override bởi config.");
+            "Config rieng",
+            "Config rieng cho source nay. Neu co config, cac gia tri ben duoi se sua truc tiep vao SO do.");
 
-        if (hasLocalConfig)
-        {
-            EditorGUILayout.HelpBox(
-                "Source nay dang dung GrassInteractionConfig. Cac field fallback ben duoi chi la gia tri staging; bam nut ghi de neu muon copy chung vao SO.",
-                MessageType.Info);
-        }
-        else
-        {
-            EditorGUILayout.HelpBox(
-                "Nếu GrassInteractionSystem có Config chung, source này sẽ dùng config chung khi chạy. Khi đó các field fallback về bán kính hoặc lực có thể không còn tác dụng.",
-                MessageType.None);
-        }
+        EditorGUILayout.HelpBox(
+            localConfig != null
+                ? "Dang sua truc tiep height/radius/strength trong GrassInteractionConfig dang gan."
+                : "Chua co GrassInteractionConfig rieng, cac gia tri ben duoi duoc luu tren component.",
+            MessageType.None);
 
-        DrawSection("Đối tượng nhận");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "targets", "Hệ nhận tác động", "Hệ thống sẽ nhận interaction này. Với cỏ, giữ Vegetation.");
+        DrawSection("Target");
+        GrassInteractionConfigEditor.DrawProperty(
+            serializedObject,
+            "targets",
+            "He nhan tac dong",
+            "He thong se nhan interaction nay. Voi co, giu Vegetation.");
 
-        DrawSection("Vùng tiếp xúc");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "emitContactShape", "Bật vùng tiếp xúc", "Bật hoặc tắt vùng đè trực tiếp quanh object.");
-        using (new EditorGUI.DisabledScope(false))
-        {
-            GrassInteractionConfigEditor.DrawProperty(serializedObject, "heightOffset", "Lệch độ cao", "Fallback khi không có config. Độ lệch điểm ghi interaction so với vị trí object.");
-            GrassInteractionConfigEditor.DrawProperty(serializedObject, "contactRadius", "Bán kính tiếp xúc", "Fallback khi không có config. Bán kính vùng cỏ bị đè trực tiếp.");
-            GrassInteractionConfigEditor.DrawProperty(serializedObject, "contactStrength", "Lực tiếp xúc", "Fallback khi không có config. Cường độ vùng đè trực tiếp.");
-        }
+        DrawSection("Contact Shape");
+        GrassInteractionConfigEditor.DrawProperty(
+            serializedObject,
+            "emitContactShape",
+            "Bat vung tiep xuc",
+            "Bat hoac tat vung de truc tiep quanh object.");
 
-        DrawSection("Vệt di chuyển");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "emitTrailShape", "Bật vệt di chuyển", "Bật hoặc tắt vệt cỏ khi object di chuyển.");
-        using (new EditorGUI.DisabledScope(false))
-        {
-            GrassInteractionConfigEditor.DrawProperty(serializedObject, "trailRadius", "Bán kính vệt", "Fallback khi không có config. Bán kính vệt cỏ phía sau object.");
-            GrassInteractionConfigEditor.DrawProperty(serializedObject, "trailStrength", "Lực vệt", "Fallback khi không có config. Cường độ vệt cỏ.");
-            GrassInteractionConfigEditor.DrawProperty(serializedObject, "minimumTrailDistance", "Khoảng tạo vệt tối thiểu", "Fallback khi không có config. Quãng đường tối thiểu để vẽ trail.");
-        }
+        EditorGUI.BeginChangeCheck();
+        GrassInteractionConfigEditor.DrawProperty(valueObject, "heightOffset", "Lech do cao", "Do lech diem ghi interaction so voi vi tri object.");
+        GrassInteractionConfigEditor.DrawProperty(valueObject, "contactRadius", "Ban kinh tiep xuc", "Ban kinh vung co bi de truc tiep.");
+        GrassInteractionConfigEditor.DrawProperty(valueObject, "contactStrength", "Luc tiep xuc", "Cuong do vung de truc tiep.");
+        bool configValuesChanged = EditorGUI.EndChangeCheck();
 
-        DrawSection("Hành vi");
-        using (new EditorGUI.DisabledScope(false))
+        DrawSection("Trail Shape");
+        GrassInteractionConfigEditor.DrawProperty(
+            serializedObject,
+            "emitTrailShape",
+            "Bat vet di chuyen",
+            "Bat hoac tat vet co khi object di chuyen.");
+
+        EditorGUI.BeginChangeCheck();
+        GrassInteractionConfigEditor.DrawProperty(valueObject, "trailRadius", "Ban kinh vet", "Ban kinh vet co phia sau object.");
+        GrassInteractionConfigEditor.DrawProperty(valueObject, "trailStrength", "Luc vet", "Cuong do vet co.");
+        GrassInteractionConfigEditor.DrawProperty(valueObject, "minimumTrailDistance", "Khoang tao vet toi thieu", "Quang duong toi thieu de ve trail.");
+        configValuesChanged |= EditorGUI.EndChangeCheck();
+
+        DrawSection("Behavior");
+        EditorGUI.BeginChangeCheck();
+        GrassInteractionConfigEditor.DrawProperty(valueObject, "emitWhileStationary", "Ghi khi dung yen", "Van ghi contact khi object dung yen.");
+        GrassInteractionConfigEditor.DrawProperty(valueObject, "suppressRecoveryWhileStationary", "Chan hoi khi dung yen", "Ngan co hoi lai khi object dung tren co.");
+        configValuesChanged |= EditorGUI.EndChangeCheck();
+
+        if (valueObject != serializedObject)
         {
-            GrassInteractionConfigEditor.DrawProperty(serializedObject, "emitWhileStationary", "Ghi khi đứng yên", "Fallback khi không có config. Vẫn ghi contact khi object đứng yên.");
-            GrassInteractionConfigEditor.DrawProperty(serializedObject, "suppressRecoveryWhileStationary", "Chặn hồi khi đứng yên", "Fallback khi không có config. Ngăn cỏ hồi lại khi object đứng trên cỏ.");
+            valueObject.ApplyModifiedProperties();
+            if (configValuesChanged)
+            {
+                EditorUtility.SetDirty(localConfig);
+            }
         }
 
         DrawSection("Debug");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "drawDebugShapes", "Vẽ vùng debug", "Vẽ gizmo contact hoặc trail trong Scene view.");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "drawDebugOnlyWhenSelected", "Chỉ vẽ khi chọn", "Chỉ hiện gizmo khi object được chọn.");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "drawDebugVelocity", "Vẽ hướng di chuyển", "Vẽ mũi tên hướng hoặc tốc độ di chuyển.");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "drawDebugLabels", "Hiện nhãn debug", "Hiện label thông số debug khi chọn object.");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "debugContactColor", "Màu contact", "Màu gizmo vùng contact.");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "debugTrailColor", "Màu trail", "Màu gizmo vùng trail.");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "debugVelocityColor", "Màu vận tốc", "Màu gizmo hướng vận tốc.");
+        GrassInteractionConfigEditor.DrawProperty(serializedObject, "drawDebugShapes", "Ve vung debug", "Ve gizmo contact hoac trail trong Scene view.");
+        GrassInteractionConfigEditor.DrawProperty(serializedObject, "drawDebugOnlyWhenSelected", "Chi ve khi chon", "Chi hien gizmo khi object duoc chon.");
+        GrassInteractionConfigEditor.DrawProperty(serializedObject, "drawDebugVelocity", "Ve huong di chuyen", "Ve mui ten huong hoac toc do di chuyen.");
+        GrassInteractionConfigEditor.DrawProperty(serializedObject, "drawDebugLabels", "Hien nhan debug", "Hien label thong so debug khi chon object.");
+        GrassInteractionConfigEditor.DrawProperty(serializedObject, "debugContactColor", "Mau contact", "Mau gizmo vung contact.");
+        GrassInteractionConfigEditor.DrawProperty(serializedObject, "debugTrailColor", "Mau trail", "Mau gizmo vung trail.");
+        GrassInteractionConfigEditor.DrawProperty(serializedObject, "debugVelocityColor", "Mau van toc", "Mau gizmo huong van toc.");
 
         serializedObject.ApplyModifiedProperties();
         EditorGUIUtility.labelWidth = previousLabelWidth;
     }
 
-    private static void DrawSection(string title)
-    {
-        EditorGUILayout.Space(8f);
-        EditorGUILayout.LabelField(title, EditorStyles.boldLabel);
-    }
-
-    private static bool CanWriteInteractorValuesToConfig(SerializedProperty config)
-    {
-        return config != null && !config.hasMultipleDifferentValues && config.objectReferenceValue != null;
-    }
-
-    private void WriteInteractorValuesToAttachedConfigs()
+    private void SaveAttachedConfigs()
     {
         int updatedCount = 0;
         foreach (Object selectedTarget in targets)
@@ -233,15 +222,6 @@ public sealed class EnvironmentInteractorEditor : Editor
                 continue;
             }
 
-            SerializedObject configObject = new SerializedObject(config);
-            Undo.RecordObject(config, "Write Interactor Values To Config");
-
-            for (int i = 0; i < InteractorConfigPropertyNames.Length; i++)
-            {
-                CopyPropertyValue(interactorObject, configObject, InteractorConfigPropertyNames[i]);
-            }
-
-            configObject.ApplyModifiedProperties();
             EditorUtility.SetDirty(config);
             updatedCount++;
         }
@@ -252,24 +232,10 @@ public sealed class EnvironmentInteractorEditor : Editor
         }
     }
 
-    private static void CopyPropertyValue(SerializedObject sourceObject, SerializedObject destinationObject, string propertyName)
+    private static void DrawSection(string title)
     {
-        SerializedProperty source = sourceObject.FindProperty(propertyName);
-        SerializedProperty destination = destinationObject.FindProperty(propertyName);
-        if (source == null || destination == null || source.propertyType != destination.propertyType)
-        {
-            return;
-        }
-
-        switch (source.propertyType)
-        {
-            case SerializedPropertyType.Boolean:
-                destination.boolValue = source.boolValue;
-                break;
-            case SerializedPropertyType.Float:
-                destination.floatValue = source.floatValue;
-                break;
-        }
+        EditorGUILayout.Space(8f);
+        EditorGUILayout.LabelField(title, EditorStyles.boldLabel);
     }
 }
 
@@ -285,42 +251,42 @@ public sealed class EnvironmentInteractionSystemEditor : Editor
 
         GrassInteractionConfigEditor.DrawScriptField(serializedObject);
 
-        DrawSection("Theo dõi vùng cỏ");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "followTarget", "Đối tượng theo dõi", "Transform mà vùng interaction sẽ đi theo. Thường là Player.");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "worldOffset", "Lệch vùng ghi", "Độ lệch vị trí vùng interaction so với đối tượng theo dõi.");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "followSceneViewInEditMode", "Theo Scene View khi edit", "Trong Edit Mode, vùng interaction đi theo Scene View camera nếu có.");
+        DrawSection("Tracking");
+        GrassInteractionConfigEditor.DrawProperty(serializedObject, "followTarget", "Doi tuong theo doi", "Transform ma vung interaction se di theo. Thuong la Player.");
+        GrassInteractionConfigEditor.DrawProperty(serializedObject, "worldOffset", "Lech vung ghi", "Do lech vi tri vung interaction so voi doi tuong theo doi.");
+        GrassInteractionConfigEditor.DrawProperty(serializedObject, "followSceneViewInEditMode", "Theo Scene View khi edit", "Trong Edit Mode, vung interaction di theo Scene View camera neu co.");
 
-        DrawSection("Render interaction map");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "orthographicSize", "Kích thước vùng", "Nửa kích thước vùng interaction theo world unit. Vùng đầy đủ có cạnh bằng giá trị này x 2.");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "globalStrength", "Cường độ global", "Cường độ tổng khi shader đọc interaction map.");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "resolution", "Độ phân giải", "Độ phân giải texture interaction. Cao hơn mịn hơn nhưng tốn GPU hơn.");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "clearColor", "Màu trung lập", "Màu trạng thái trung lập của interaction map. Thường giữ mặc định 0.5, 0.5, 0, 0.");
+        DrawSection("Render Interaction Map");
+        GrassInteractionConfigEditor.DrawProperty(serializedObject, "orthographicSize", "Kich thuoc vung", "Nua kich thuoc vung interaction theo world unit.");
+        GrassInteractionConfigEditor.DrawProperty(serializedObject, "globalStrength", "Cuong do global", "Cuong do tong khi shader doc interaction map.");
+        GrassInteractionConfigEditor.DrawProperty(serializedObject, "resolution", "Do phan giai", "Do phan giai texture interaction.");
+        GrassInteractionConfigEditor.DrawProperty(serializedObject, "clearColor", "Mau trung lap", "Mau trang thai trung lap cua interaction map.");
 
-        DrawSection("Lịch sử vệt cỏ");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "historyBlendSeconds", "Thời gian giữ vệt", "Thời gian blend hoặc history của vệt cỏ bị đè. Tăng giá trị để cỏ hồi chậm hơn; đặt rất lớn để gần như không hồi khi test.");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "accumulationShader", "Shader cộng dồn", "Shader dùng để cộng dồn interaction map qua thời gian.");
+        DrawSection("History");
+        GrassInteractionConfigEditor.DrawProperty(serializedObject, "historyBlendSeconds", "Thoi gian giu vet", "Thoi gian blend/history cua vet co bi de.");
+        GrassInteractionConfigEditor.DrawProperty(serializedObject, "accumulationShader", "Shader cong don", "Shader dung de cong don interaction map theo thoi gian.");
 
-        DrawSection("Ghi shape");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "batchStampShader", "Shader ghi shape", "Shader dùng để ghi các shape contact hoặc trail vào interaction map.");
+        DrawSection("Shape Writer");
+        GrassInteractionConfigEditor.DrawProperty(serializedObject, "batchStampShader", "Shader ghi shape", "Shader dung de ghi contact/trail vao interaction map.");
 
-        DrawSection("Config chung");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "interactionConfig", "Config chung", "Config cỏ dùng chung cho toàn bộ interaction system. Source không có config riêng sẽ dùng config này; Material Overrides cũng được đẩy vào shader từ đây.");
+        DrawSection("Shared Config");
+        GrassInteractionConfigEditor.DrawProperty(serializedObject, "interactionConfig", "Config chung", "Config co dung chung cho toan bo interaction system.");
 
         DrawSection("Debug");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "drawDebugRegion", "Vẽ vùng debug", "Vẽ vùng interaction trong Scene view.");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "drawDebugOnlyWhenSelected", "Chỉ vẽ khi chọn", "Chỉ vẽ debug khi chọn object.");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "drawDebugLabels", "Hiện nhãn debug", "Hiện label kích thước, độ phân giải và số shape.");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "drawDebugCross", "Vẽ dấu cộng", "Vẽ đường chữ thập ở tâm vùng interaction.");
-        GrassInteractionConfigEditor.DrawProperty(serializedObject, "debugRegionColor", "Màu vùng debug", "Màu gizmo của vùng interaction.");
+        GrassInteractionConfigEditor.DrawProperty(serializedObject, "drawDebugRegion", "Ve vung debug", "Ve vung interaction trong Scene view.");
+        GrassInteractionConfigEditor.DrawProperty(serializedObject, "drawDebugOnlyWhenSelected", "Chi ve khi chon", "Chi ve debug khi chon object.");
+        GrassInteractionConfigEditor.DrawProperty(serializedObject, "drawDebugLabels", "Hien nhan debug", "Hien label kich thuoc, do phan giai va so shape.");
+        GrassInteractionConfigEditor.DrawProperty(serializedObject, "drawDebugCross", "Ve dau cong", "Ve duong chu thap o tam vung interaction.");
+        GrassInteractionConfigEditor.DrawProperty(serializedObject, "debugRegionColor", "Mau vung debug", "Mau gizmo cua vung interaction.");
 
-        DrawSection("Legacy không còn dùng");
+        DrawSection("Legacy");
         EditorGUILayout.HelpBox(
-            "Hai field bên dưới thuộc path render camera cũ. Backend hiện tại ghi shape trực tiếp vào texture nên thay đổi chúng không ảnh hưởng đến cỏ.",
+            "Hai field ben duoi thuoc path render camera cu. Backend hien tai ghi shape truc tiep vao texture nen chung khong con anh huong den co.",
             MessageType.Warning);
         using (new EditorGUI.DisabledScope(true))
         {
-            GrassInteractionConfigEditor.DrawProperty(serializedObject, "cullingMask", "Layer render cũ", "Không còn tác dụng trong backend shape batching hiện tại.");
-            GrassInteractionConfigEditor.DrawProperty(serializedObject, "hideInteractionLayerFromGameCameras", "Ẩn layer render cũ", "Không còn tác dụng trong backend shape batching hiện tại.");
+            GrassInteractionConfigEditor.DrawProperty(serializedObject, "cullingMask", "Layer render cu", "Khong con tac dung trong backend shape batching hien tai.");
+            GrassInteractionConfigEditor.DrawProperty(serializedObject, "hideInteractionLayerFromGameCameras", "An layer render cu", "Khong con tac dung trong backend shape batching hien tai.");
         }
 
         serializedObject.ApplyModifiedProperties();
