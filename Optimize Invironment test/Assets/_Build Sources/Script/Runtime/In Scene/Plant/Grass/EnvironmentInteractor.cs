@@ -18,7 +18,7 @@ public class EnvironmentInteractor : MonoBehaviour
     private const float DebugDrawHeightOffset = 0.03f;
 
     [Header("Config")]
-    [Tooltip("Config cỏ dùng riêng cho source này. Nếu bỏ trống, source sẽ dùng config đang gắn trên EnvironmentInteractionSystem.")]
+    [Tooltip("Config cỏ dùng riêng cho source này. Nếu bỏ trống, source sẽ dùng config đang gắn trên GrassInteractionSystem.")]
     [SerializeField] private GrassInteractionConfig interactionConfig;
 
     [Header("Target")]
@@ -122,7 +122,7 @@ public class EnvironmentInteractor : MonoBehaviour
 
     /// <summary>
     /// Thu thập các hình dạng tương tác (disc, capsule) và thêm vào buffer.
-    /// Hàm này được gọi bởi một hệ thống bên ngoài (ví dụ: EnvironmentInteractionSystem) để xử lý hiệu ứng.
+    /// Hàm này được gọi bởi một hệ thống bên ngoài (ví dụ: GrassInteractionSystem) để xử lý hiệu ứng.
     /// </summary>
     /// <param name="buffer">Danh sách để thêm các InteractionShape được tạo ra.</param>
     /// <param name="context">Ngữ cảnh của việc thu thập, chứa vị trí tập trung và khoảng cách tối đa.</param>
@@ -392,7 +392,7 @@ public class EnvironmentInteractor : MonoBehaviour
     /// <returns>Đối tượng GrassInteractionConfig đang hoạt động.</returns>
     protected GrassInteractionConfig ResolveInteractionConfig()
     {
-        return interactionConfig != null ? interactionConfig : EnvironmentInteractionSystem.ActiveInteractionConfig;
+        return interactionConfig != null ? interactionConfig : GrassInteractionSystem.ActiveInteractionConfig;
     }
 
     /// <summary>

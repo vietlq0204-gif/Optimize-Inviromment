@@ -14,7 +14,7 @@ public sealed class GrassInteractionConfigEditor : Editor
         DrawScriptField(serializedObject);
 
         EditorGUILayout.HelpBox(
-            "Config nay dieu khien tuong tac co. Neu gan vao EnvironmentInteractionSystem, phan Material Overrides se ghi de thong so tren material co bang global shader values.",
+            "Config nay dieu khien tuong tac co. Neu gan vao GrassInteractionSystem, phan Material Overrides se ghi de thong so tren material co bang global shader values.",
             MessageType.Info);
 
         DrawSection("Contact Writer");
@@ -239,9 +239,9 @@ public sealed class EnvironmentInteractorEditor : Editor
     }
 }
 
-[CustomEditor(typeof(EnvironmentInteractionSystem), true)]
+[CustomEditor(typeof(GrassInteractionSystem), true)]
 [CanEditMultipleObjects]
-public sealed class EnvironmentInteractionSystemEditor : Editor
+public sealed class GrassInteractionSystemEditor : Editor
 {
     public override void OnInspectorGUI()
     {
@@ -250,6 +250,13 @@ public sealed class EnvironmentInteractionSystemEditor : Editor
         EditorGUIUtility.labelWidth = 190f;
 
         GrassInteractionConfigEditor.DrawScriptField(serializedObject);
+
+        if (target != null && target.GetType().Name == "EnvironmentInteractionSystem")
+        {
+            EditorGUILayout.HelpBox(
+                "EnvironmentInteractionSystem chi con la legacy alias. Hay dung GrassInteractionSystem cho setup moi.",
+                MessageType.Warning);
+        }
 
         DrawSection("Tracking");
         GrassInteractionConfigEditor.DrawProperty(serializedObject, "followTarget", "Doi tuong theo doi", "Transform ma vung interaction se di theo. Thuong la Player.");
