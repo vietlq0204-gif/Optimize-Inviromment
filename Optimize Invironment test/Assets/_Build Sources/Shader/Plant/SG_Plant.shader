@@ -85,12 +85,14 @@ Shader "Custom/Vit/Plant_URP"
         #include "Includes/SG_PlantCommon.hlsl"
         #include "../Grass/SG_GrassShape.hlsl"
         #include "Includes/SG_PlantWind.hlsl"
+        #include "Includes/SG_PlantDynamicInteraction.hlsl"
         #include "Includes/SG_PlantTerrainBlend.hlsl"
         #include "Includes/SG_PlantLighting.hlsl"
 
         float3 ApplyPlantMotion(float3 worldPos, float bladeMask)
         {
-            return ApplyWind(worldPos, bladeMask);
+            float3 animatedWorldPos = ApplyWind(worldPos, bladeMask);
+            return ApplyDynamicGrassInteraction(animatedWorldPos, bladeMask);
         }
 
         struct PlantDepthAttributes
@@ -361,6 +363,7 @@ Shader "Custom/Vit/Plant_URP"
                 color *= lerp(float3(1.0, 1.0, 1.0), GetHeightTint(input.bladeMask), colorEnabled);
                 color = ApplyTerrainBlend(color, input.worldPos);
                 color *= GetGrassShadowNoiseAttenuation(input.shadowWorldPos);
+                color = ApplyDynamicGrassInteractionDebugTint(color, input.shadowWorldPos, input.bladeMask);
 
                 if (GetToggle01(_EnableLighting) < 0.5)
                 {

@@ -1,0 +1,243 @@
+#pragma kernel Simulate
+#pragma kernel Recenter
+#pragma kernel Stamp
+
+Texture2D<float4> _ForceMap;
+RWTexture2D<float4> _ForceMapWrite;
+Texture2D<float4> _StateRead;
+RWTexture2D<float4> _StateWrite;
+Texture2D<float2> _FlattenRead;
+RWTexture2D<float2> _FlattenWrite;
+
+float4 _SimulationParams; // x dt, y bend spring, z bend damping, w force strength
+float4 _LimitParams; // x max bend, y flatten force, z flatten spring, w flatten damping
+float4 _TurbulenceParams; // x max flatten, y turbulence strength, z time
+float4 _RecenterParams; // xy old texture uv offset caused by field center movement
+float4 _GrassDynamicInteractionFieldParams; // x center x, y center z, z coverage, w enabled
+float4 _GrassDynamicInteractionStampParams; // x speed to wake, y source count
+
+struct GrassInteractionSourceData
+{
+    float4 positionRadius;
+    float4 velocityPush;
+    float4 response;
+};
+
+StructuredBuffer<GrassInteractionSourceData> _GrassDynamicInteractionSources;
+
+float Hash12(float2 p)
+{
+    float3 p3 = frac(float3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return frac((p3.x + p3.y) * p3.z);
+}
+
+float4 LoadStateSafe(int2 pixel, uint width, uint height)
+{
+    if (pixel.x < 0 || pixel.y < 0 || pixel.x >= (int)width || pixel.y >= (int)height)
+    {
+        return float4(0.0, 0.0, 0.0, 0.0);
+    }
+
+    return _StateRead.Load(int3(pixel, 0));
+}
+
+float2 LoadFlattenSafe(int2 pixel, uint width, uint height)
+{
+    if (pixel.x < 0 || pixel.y < 0 || pixel.x >= (int)width || pixel.y >= (int)height)
+    {
+        return float2(0.0, 0.0);
+    }
+
+    return _FlattenRead.Load(int3(pixel, 0));
+}
+
+float4 SampleStateBilinear(float2 uv, uint width, uint height)
+{
+    if (any(uv < 0.0) || any(uv > 1.0))
+    {
+        return float4(0.0, 0.0, 0.0, 0.0);
+    }
+
+    float2 pixel = uv * float2(width, height) - 0.5;
+    int2 p0 = int2(floor(pixel));
+    int2 p1 = p0 + 1;
+    float2 t = frac(pixel);
+
+    float4 a = LoadStateSafe(int2(p0.x, p0.y), width, height);
+    float4 b = LoadStateSafe(int2(p1.x, p0.y), width, height);
+    float4 c = LoadStateSafe(int2(p0.x, p1.y), width, height);
+    float4 d = LoadStateSafe(int2(p1.x, p1.y), width, height);
+    return lerp(lerp(a, b, t.x), lerp(c, d, t.x), t.y);
+}
+
+float2 SampleFlattenBilinear(float2 uv, uint width, uint height)
+{
+    if (any(uv < 0.0) || any(uv > 1.0))
+    {
+        return float2(0.0, 0.0);
+    }
+
+    float2 pixel = uv * float2(width, height) - 0.5;
+    int2 p0 = int2(floor(pixel));
+    int2 p1 = p0 + 1;
+    float2 t = frac(pixel);
+
+    float2 a = LoadFlattenSafe(int2(p0.x, p0.y), width, height);
+    float2 b = LoadFlattenSafe(int2(p1.x, p0.y), width, height);
+    float2 c = LoadFlattenSafe(int2(p0.x, p1.y), width, height);
+    float2 d = LoadFlattenSafe(int2(p1.x, p1.y), width, height);
+    return lerp(lerp(a, b, t.x), lerp(c, d, t.x), t.y);
+}
+
+[numthreads(8, 8, 1)]
+void Recenter(uint3 id : SV_DispatchThreadID)
+{
+    uint width;
+    uint height;
+    _StateWrite.GetDimensions(width, height);
+    if (id.x >= width || id.y >= height)
+    {
+        return;
+    }
+
+    float2 uv = (float2(id.xy) + 0.5) / float2(width, height);
+    float2 oldUv = uv + _RecenterParams.xy;
+
+    int2 pixel = int2(id.xy);
+    _StateWrite[pixel] = SampleStateBilinear(oldUv, width, height);
+    _FlattenWrite[pixel] = SampleFlattenBilinear(oldUv, width, height);
+}
+
+[numthreads(8, 8, 1)]
+void Stamp(uint3 id : SV_DispatchThreadID)
+{
+    uint width;
+    uint height;
+    _ForceMapWrite.GetDimensions(width, height);
+    if (id.x >= width || id.y >= height)
+    {
+        return;
+    }
+
+    float2 uv = (float2(id.xy) + 0.5) / float2(width, height);
+    float coverage = max(_GrassDynamicInteractionFieldParams.z, 0.001);
+    float2 fieldCenter = _GrassDynamicInteractionFieldParams.xy;
+    float2 worldXZ = (uv - 0.5) * coverage + fieldCenter;
+
+    int sourceCount = min((int)_GrassDynamicInteractionStampParams.y, 512);
+    float4 accumulatedForce = float4(0.0, 0.0, 0.0, 0.0);
+
+    [loop]
+    for (int sourceIndex = 0; sourceIndex < sourceCount; sourceIndex++)
+    {
+        GrassInteractionSourceData source = _GrassDynamicInteractionSources[sourceIndex];
+
+        float2 sourceXZ = source.positionRadius.xz;
+        float2 toPoint = worldXZ - sourceXZ;
+        float distanceToSource = length(toPoint);
+        float radius = max(source.positionRadius.w, 0.001);
+        float contact01 = saturate(1.0 - distanceToSource / radius);
+        contact01 = contact01 * contact01 * (3.0 - 2.0 * contact01);
+
+        float2 velocityXZ = source.velocityPush.xz;
+        float speed = length(velocityXZ);
+        float2 direction = speed > 0.0001 ? velocityXZ / speed : float2(0.0, 1.0);
+        float2 radialDirection = distanceToSource > 0.0001 ? toPoint / distanceToSource : -direction;
+
+        float2 force = radialDirection * source.velocityPush.w * contact01;
+        float flatten = source.response.x * contact01;
+        float turbulence = 0.0;
+
+        if (speed > 0.05 && source.response.y > 0.0)
+        {
+            float2 sideDirection = float2(-direction.y, direction.x);
+            float behind = dot(toPoint, -direction);
+            float side = abs(dot(toPoint, sideDirection));
+            float wakeLength = max(radius, speed * source.response.z);
+            float wakeWidth = radius * lerp(1.25, 2.25, saturate(speed * 0.08));
+            float wakeAlong = saturate(1.0 - behind / max(wakeLength, 0.001));
+            float wakeSide = saturate(1.0 - side / max(wakeWidth, 0.001));
+            float wakeMask = step(0.0, behind) * wakeAlong * wakeSide;
+            wakeMask = wakeMask * wakeMask * (3.0 - 2.0 * wakeMask);
+
+            float speed01 = saturate(speed * _GrassDynamicInteractionStampParams.x);
+            force += direction * source.response.y * speed01 * wakeMask;
+            turbulence += source.response.w * speed01 * wakeMask;
+        }
+
+        accumulatedForce += float4(force.x, force.y, flatten, turbulence);
+    }
+
+    _ForceMapWrite[int2(id.xy)] = accumulatedForce;
+}
+
+[numthreads(8, 8, 1)]
+void Simulate(uint3 id : SV_DispatchThreadID)
+{
+    uint width;
+    uint height;
+    _StateWrite.GetDimensions(width, height);
+    if (id.x >= width || id.y >= height)
+    {
+        return;
+    }
+
+    int2 pixel = int2(id.xy);
+    float4 force = _ForceMap.Load(int3(pixel, 0));
+    float4 state = _StateRead.Load(int3(pixel, 0));
+    float2 flattenState = _FlattenRead.Load(int3(pixel, 0));
+
+    float dt = _SimulationParams.x;
+    float2 bend = state.xy;
+    float2 bendVelocity = state.zw;
+
+    float noise = Hash12(float2(id.xy) + _TurbulenceParams.z * 17.0);
+    float angle = noise * 6.2831853;
+    float2 turbulence = float2(cos(angle), sin(angle)) * force.a * _TurbulenceParams.y;
+    float2 appliedForce = force.xy * _SimulationParams.w + turbulence;
+
+    float2 bendAcceleration = appliedForce - bend * _SimulationParams.y - bendVelocity * _SimulationParams.z;
+    bendVelocity += bendAcceleration * dt;
+    bend += bendVelocity * dt;
+
+    float bendLength = length(bend);
+    if (bendLength > _LimitParams.x)
+    {
+        bend *= _LimitParams.x / max(bendLength, 0.0001);
+        bendVelocity *= 0.5;
+    }
+
+    if (dot(bend, bend) < 0.00000025 && dot(bendVelocity, bendVelocity) < 0.00000025)
+    {
+        bend = 0.0;
+        bendVelocity = 0.0;
+    }
+
+    float flatten = flattenState.x;
+    float flattenVelocity = flattenState.y;
+    float flattenAcceleration = force.b * _LimitParams.y - flatten * _LimitParams.z - flattenVelocity * _LimitParams.w;
+    flattenVelocity += flattenAcceleration * dt;
+    flatten += flattenVelocity * dt;
+
+    if (flatten < 0.0)
+    {
+        flatten = 0.0;
+        flattenVelocity = 0.0;
+    }
+
+    if (flatten > _TurbulenceParams.x)
+    {
+        flatten = _TurbulenceParams.x;
+        flattenVelocity = min(flattenVelocity, 0.0);
+    }
+
+    if (flatten < 0.0001 && abs(flattenVelocity) < 0.0001)
+    {
+        flatten = 0.0;
+        flattenVelocity = 0.0;
+    }
+
+    _StateWrite[pixel] = float4(bend, bendVelocity);
+    _FlattenWrite[pixel] = float2(flatten, flattenVelocity);
+}
