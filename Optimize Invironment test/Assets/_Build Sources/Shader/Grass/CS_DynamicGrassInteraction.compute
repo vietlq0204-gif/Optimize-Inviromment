@@ -161,9 +161,9 @@ void Stamp(uint3 id : SV_DispatchThreadID)
             float wakeProgress = saturate(behind / max(wakeLength, 0.001));
             float coneStart = min(saturate(source.wakeShape.w), 0.999);
             float coneProgress = smoothstep(coneStart, 1.0, wakeProgress);
-            float startWidth = radius * max(source.wakeShape.x, 0.0);
+            float startWidth = max(source.wakeShape.x, 0.0);
             float tailWidthScale = max(source.wakeShape.y, source.wakeShape.x);
-            float endWidth = radius * tailWidthScale;
+            float endWidth = tailWidthScale;
             float wakeWidth = max(lerp(startWidth, endWidth, coneProgress), max(radius * 0.01, 0.001));
             float edgeFeather = max(wakeWidth * max(source.wakeShape.z, 0.01), max(radius * 0.01, 0.001));
             float innerWidth = max(wakeWidth - edgeFeather, wakeWidth * 0.05);

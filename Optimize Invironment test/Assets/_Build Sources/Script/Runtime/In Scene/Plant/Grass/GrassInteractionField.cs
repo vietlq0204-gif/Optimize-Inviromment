@@ -79,13 +79,33 @@ public sealed class GrassInteractionField : MonoBehaviour
     [Tooltip("Độ nhiễu phụ trong vùng wake phía sau vật thể đang chạy. Tăng để vệt gió rung hỗn loạn hơn; giảm để chuyển động sạch và ít loạn hơn.")]
     [SerializeField, Min(0f)] private float turbulenceStrength = 2f;
 
+    [Header("Air Wake")]
+    [Tooltip("Độ mạnh wake dùng chung cho mọi GrassInteractionSource. Tăng để vật thể đang chạy quạt cỏ phía sau mạnh hơn; giảm nếu wake quá rõ.")]
+    [SerializeField, Min(0f)] private float airWakeStrength = 0.2f;
+    [Tooltip("Quy đổi tốc độ của source thành cường độ wake. Tăng để vật chạy nhanh tác động wake mạnh hơn; giảm nếu wake quá nhạy với tốc độ.")]
+    [SerializeField, Min(0f)] private float speedToWake = 0.12f;
+    [Tooltip("Chiều dài wake tối đa theo tốc độ của source. Tăng để vật chạy nhanh để lại vệt dài hơn; giảm để wake ngắn hơn.")]
+    [SerializeField, Min(0f)] private float wakeLengthPerSpeed = 0.35f;
+    [Tooltip("Tốc độ wake dài ra theo quãng đường vật thể đã đi. 1 nghĩa là wake dài thêm đúng theo khoảng cách vật đã chạy; tăng để vệt mọc nhanh hơn; giảm để vệt mọc chậm hơn.")]
+    [SerializeField, Min(0f)] private float wakeBuildDistanceMultiplier = 1f;
+    [Tooltip("Ngưỡng phát hiện rẽ gấp để reset wake. Cao hơn sẽ reset với góc rẽ nhỏ hơn; thấp hơn chỉ reset khi đổi hướng rất mạnh. 0.7 gần tương đương rẽ hơn khoảng 45 độ.")]
+    [SerializeField, Range(-1f, 1f)] private float wakeDirectionResetDot = 0.7f;
+    [Tooltip("Hệ số nhân độ rộng đầu wake lấy từ scale X/Z của source. Đầu wake tự rộng theo kích thước object; tăng nếu muốn đầu wake rộng hơn cho mọi object.")]
+    [SerializeField, Min(0f)] private float wakeHeadWidthObjectScale = 1f;
+    [Tooltip("Độ rộng đuôi wake tăng theo vận tốc source, tính bằng world unit trên mỗi unit/giây. Tăng để vật chạy nhanh mở đuôi wake rộng hơn; giảm để đuôi hẹp hơn.")]
+    [SerializeField, Min(0f)] private float wakeTailWidthPerSpeed = 0.06f;
+    [Tooltip("Độ mềm/mờ hai bên mép wake. Tăng để mép wake mờ rộng hơn; giảm để mép sắc hơn.")]
+    [SerializeField, Range(0.01f, 1f)] private float wakeEdgeFeather = 0.22f;
+    [Tooltip("Vị trí dọc wake bắt đầu mở rộng thành hình nón. Tăng để wake giữ dạng đường thẳng lâu hơn rồi mới mở; giảm để mở rộng sớm hơn.")]
+    [SerializeField, Range(0f, 1f)] private float wakeConeStart = 0.12f;
+    [Tooltip("Độ mạnh nhiễu loạn ngẫu nhiên trong wake. Tăng để cỏ trong vệt rung hỗn loạn hơn; giảm để wake mượt hơn.")]
+    [SerializeField, Min(0f)] private float wakeTurbulenceStrength = 0.2f;
+
     [Header("Render Response")]
     [Tooltip("Hệ số nhân hiệu ứng cong khi render. Tăng để nhìn thấy cỏ nghiêng mạnh hơn mà không đổi mô phỏng; giảm để làm hiệu ứng cong nhẹ hơn.")]
     [SerializeField, Min(0f)] private float shaderBendScale = 1f;
     [Tooltip("Hệ số nhân hiệu ứng đè thấp khi render. Tăng để cỏ nhìn lún sâu hơn; giảm để vết đè nông hơn.")]
     [SerializeField, Min(0f)] private float shaderFlattenScale = 1f;
-    [Tooltip("Quy đổi tốc độ của source thành độ mạnh wake. Tăng để vật chạy nhanh tạo vệt ảnh hưởng dài/rộng hơn; giảm nếu vùng wake quá lớn hoặc quá nhạy.")]
-    [SerializeField, Min(0f)] private float speedToWake = 0.12f;
 
     [Header("Shaders")]
     [Tooltip("Compute shader chính dùng để stamp source, mô phỏng cong, vận tốc và đè thấp của cỏ. Chỉ đổi nếu thay shader hệ thống.")]
@@ -177,6 +197,27 @@ public sealed class GrassInteractionField : MonoBehaviour
         simulationFrequency = Mathf.Clamp(simulationFrequency, 1f, 60f);
         maxStepsPerFrame = Mathf.Clamp(maxStepsPerFrame, 1, 4);
         recoveryWakeSeconds = Mathf.Max(0f, recoveryWakeSeconds);
+        forceStrength = Mathf.Max(0f, forceStrength);
+        bendSpring = Mathf.Max(0f, bendSpring);
+        bendDamping = Mathf.Max(0f, bendDamping);
+        maxBend = Mathf.Max(0f, maxBend);
+        flattenForceStrength = Mathf.Max(0f, flattenForceStrength);
+        flattenSpring = Mathf.Max(0f, flattenSpring);
+        flattenDamping = Mathf.Max(0f, flattenDamping);
+        maxFlatten = Mathf.Max(0f, maxFlatten);
+        turbulenceStrength = Mathf.Max(0f, turbulenceStrength);
+        airWakeStrength = Mathf.Max(0f, airWakeStrength);
+        wakeLengthPerSpeed = Mathf.Max(0f, wakeLengthPerSpeed);
+        wakeBuildDistanceMultiplier = Mathf.Max(0f, wakeBuildDistanceMultiplier);
+        wakeDirectionResetDot = Mathf.Clamp(wakeDirectionResetDot, -1f, 1f);
+        wakeHeadWidthObjectScale = Mathf.Max(0f, wakeHeadWidthObjectScale);
+        wakeTailWidthPerSpeed = Mathf.Max(0f, wakeTailWidthPerSpeed);
+        wakeEdgeFeather = Mathf.Clamp(wakeEdgeFeather, 0.01f, 1f);
+        wakeConeStart = Mathf.Clamp01(wakeConeStart);
+        wakeTurbulenceStrength = Mathf.Max(0f, wakeTurbulenceStrength);
+        shaderBendScale = Mathf.Max(0f, shaderBendScale);
+        shaderFlattenScale = Mathf.Max(0f, shaderFlattenScale);
+        speedToWake = Mathf.Max(0f, speedToWake);
         debugGizmoHeight = Mathf.Max(0f, debugGizmoHeight);
         debugBendSensitivity = Mathf.Max(0f, debugBendSensitivity);
         debugFlattenSensitivity = Mathf.Max(0f, debugFlattenSensitivity);
@@ -208,6 +249,9 @@ public sealed class GrassInteractionField : MonoBehaviour
             return;
         }
 
+        float frameDeltaTime = GetFrameDeltaTime();
+        UpdateSourceWakeStates(frameDeltaTime);
+
         Vector3 nextFieldCenter = GetFieldCenter();
         RecenterFieldIfNeeded(nextFieldCenter);
         int sourceCount = CollectVisibleSources(fieldCenter);
@@ -217,11 +261,11 @@ public sealed class GrassInteractionField : MonoBehaviour
         }
         else
         {
-            recoveryTimer = Mathf.Max(0f, recoveryTimer - GetFrameDeltaTime());
+            recoveryTimer = Mathf.Max(0f, recoveryTimer - frameDeltaTime);
         }
 
         float stepDeltaTime = 1f / Mathf.Max(simulationFrequency, 1f);
-        simulationAccumulator += GetFrameDeltaTime();
+        simulationAccumulator += frameDeltaTime;
         int steps = 0;
 
         while (simulationAccumulator >= stepDeltaTime && steps < maxStepsPerFrame)
@@ -351,16 +395,32 @@ public sealed class GrassInteractionField : MonoBehaviour
             GrassInteractionSource source = visibleSources[i];
             Vector3 position = source.transform.position;
             Vector3 velocity = source.Velocity;
+            float planarSpeed = new Vector2(velocity.x, velocity.z).magnitude;
+            float wakeHeadWidth = source.PlanarHalfScale * wakeHeadWidthObjectScale;
+            float wakeTailWidth = Mathf.Max(wakeHeadWidth, wakeHeadWidth + planarSpeed * wakeTailWidthPerSpeed);
             sourceData[i] = new GpuSource
             {
                 PositionRadius = new Vector4(position.x, position.y, position.z, source.Radius),
                 VelocityPush = new Vector4(velocity.x, velocity.y, velocity.z, source.PushStrength),
-                Response = new Vector4(source.FlattenStrength, source.AirWakeStrength, source.CurrentWakeLength, source.TurbulenceStrength),
-                WakeShape = new Vector4(source.WakeHeadWidthRadiusScale, source.WakeTailWidthRadiusScale, source.WakeEdgeFeather, source.WakeConeStart),
+                Response = new Vector4(source.FlattenStrength, airWakeStrength, source.CurrentWakeLength, wakeTurbulenceStrength),
+                WakeShape = new Vector4(wakeHeadWidth, wakeTailWidth, wakeEdgeFeather, wakeConeStart),
             };
         }
 
         return visibleSources.Count;
+    }
+
+    private void UpdateSourceWakeStates(float deltaTime)
+    {
+        foreach (GrassInteractionSource source in GrassInteractionSource.Sources)
+        {
+            if (source == null || !source.isActiveAndEnabled)
+            {
+                continue;
+            }
+
+            source.UpdateWakeState(deltaTime, wakeLengthPerSpeed, wakeBuildDistanceMultiplier, wakeDirectionResetDot);
+        }
     }
 
     private void SimulateStep(int sourceCount, float deltaTime, bool shouldRunSimulation)
