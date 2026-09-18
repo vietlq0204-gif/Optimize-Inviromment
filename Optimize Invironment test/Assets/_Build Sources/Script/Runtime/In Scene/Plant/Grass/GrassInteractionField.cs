@@ -14,7 +14,7 @@ using UnityEditor;
 public sealed class GrassInteractionField : MonoBehaviour
 {
     private const int ThreadGroupSize = 8;
-    private const int SourceStride = sizeof(float) * 12;
+    private const int SourceStride = sizeof(float) * 16;
 
     private static readonly int StateMapId = Shader.PropertyToID("_GrassDynamicInteractionStateMap");
     private static readonly int FlattenMapId = Shader.PropertyToID("_GrassDynamicInteractionFlattenMap");
@@ -144,6 +144,7 @@ public sealed class GrassInteractionField : MonoBehaviour
         public Vector4 PositionRadius;
         public Vector4 VelocityPush;
         public Vector4 Response;
+        public Vector4 WakeShape;
     }
 
     private void Reset()
@@ -354,7 +355,8 @@ public sealed class GrassInteractionField : MonoBehaviour
             {
                 PositionRadius = new Vector4(position.x, position.y, position.z, source.Radius),
                 VelocityPush = new Vector4(velocity.x, velocity.y, velocity.z, source.PushStrength),
-                Response = new Vector4(source.FlattenStrength, source.AirWakeStrength, source.WakeLengthPerSpeed, source.TurbulenceStrength),
+                Response = new Vector4(source.FlattenStrength, source.AirWakeStrength, source.CurrentWakeLength, source.TurbulenceStrength),
+                WakeShape = new Vector4(source.WakeHeadWidthRadiusScale, source.WakeTailWidthRadiusScale, source.WakeEdgeFeather, source.WakeConeStart),
             };
         }
 
