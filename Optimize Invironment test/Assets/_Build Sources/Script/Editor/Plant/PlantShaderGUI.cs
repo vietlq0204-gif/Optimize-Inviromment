@@ -17,8 +17,6 @@ public sealed class PlantShaderGUI : ShaderGUI
     private static bool s_ShowWindNoise = true;
     private static bool s_ShowColor = true;
     private static bool s_ShowTerrain = true;
-    private static bool s_ShowInteraction = true;
-    private static bool s_ShowInteractionAdvanced;
 
     public override void OnGUI(MaterialEditor materialEditor, MaterialProperty[] properties)
     {
@@ -83,17 +81,6 @@ public sealed class PlantShaderGUI : ShaderGUI
         MaterialProperty terrainColor = Find("_TerrainColor", properties);
         MaterialProperty terrainBlendStrength = Find("_TerrainBlendStrength", properties);
 
-        MaterialProperty enableInteraction = Find("_EnableInteraction", properties);
-        MaterialProperty interactionStrength = Find("_InteractionStrength", properties);
-        MaterialProperty interactionPushAway = Find("_InteractionPushAway", properties);
-        MaterialProperty interactionFlatten = Find("_InteractionFlatten", properties);
-        MaterialProperty interactionRadiusMultiplier = Find("_InteractionRadiusMultiplier", properties);
-        MaterialProperty interactionVerticalRange = Find("_InteractionVerticalRange", properties);
-        MaterialProperty interactionTrail = Find("_InteractionTrail", properties);
-        MaterialProperty interactionRecoveryStrength = Find("_InteractionRecoveryStrength", properties);
-        MaterialProperty interactionRecoveryFrequency = Find("_InteractionRecoveryFrequency", properties);
-        MaterialProperty interactionRecoveryNoiseScale = Find("_InteractionRecoveryNoiseScale", properties);
-
         DrawCommon(materialEditor, ref s_ShowCommon, baseMap, cutoff);
         DrawColor(materialEditor, ref s_ShowColor, enableColor, baseColor, nearColor, farColor, nearFarRange, bottomColor, heightBlend);
         DrawLighting(
@@ -150,19 +137,6 @@ public sealed class PlantShaderGUI : ShaderGUI
             grassShadowNoiseStrength,
             grassShadowNoiseContrast);
 
-        DrawInteraction(
-            materialEditor,
-            ref s_ShowInteraction,
-            enableInteraction,
-            interactionStrength,
-            interactionPushAway,
-            interactionFlatten,
-            interactionRadiusMultiplier,
-            interactionVerticalRange,
-            interactionTrail,
-            interactionRecoveryStrength,
-            interactionRecoveryFrequency,
-            interactionRecoveryNoiseScale);
         DrawTerrain(materialEditor, ref s_ShowTerrain, enableTerrain, useTerrainColor, terrainColor, terrainBlendStrength);
         DrawGrassShape(materialEditor, ref s_ShowGrassShape, enableGrassConeShape, grassConeTipScale);
         DrawBakeTools(materialEditor);
@@ -508,54 +482,6 @@ public sealed class PlantShaderGUI : ShaderGUI
 
         EditorGUILayout.HelpBox(
             "Shader co the dung mau terrain dat tay hoac terrain color map toan cuc do he terrain cung cap.",
-            MessageType.None);
-        EditorGUI.indentLevel--;
-        EditorGUILayout.Space(4);
-    }
-
-    private static void DrawInteraction(
-        MaterialEditor materialEditor,
-        ref bool foldout,
-        MaterialProperty enableInteraction,
-        MaterialProperty interactionStrength,
-        MaterialProperty interactionPushAway,
-        MaterialProperty interactionFlatten,
-        MaterialProperty interactionRadiusMultiplier,
-        MaterialProperty interactionVerticalRange,
-        MaterialProperty interactionTrail,
-        MaterialProperty interactionRecoveryStrength,
-        MaterialProperty interactionRecoveryFrequency,
-        MaterialProperty interactionRecoveryNoiseScale)
-    {
-        bool interactionEnabled = DrawToggleFoldoutHeader(
-            ref foldout,
-            enableInteraction,
-            MakeLabel("Interaction", "Bat hoac tat grass interaction cua plant."));
-        if (!foldout)
-        {
-            return;
-        }
-
-        EditorGUI.indentLevel++;
-        EditorGUI.BeginDisabledGroup(!interactionEnabled);
-        materialEditor.ShaderProperty(interactionStrength, MakeLabel("Strength", "He so tong quyet dinh muc do phan ung."));
-        materialEditor.ShaderProperty(interactionPushAway, MakeLabel("Push Away", "Do nghieng ngang ban dau theo huong tac dong."));
-        materialEditor.ShaderProperty(interactionFlatten, MakeLabel("Flatten", "Muc do co bi ep thap xuong khi dang chiu tac dong."));
-        materialEditor.ShaderProperty(interactionVerticalRange, MakeLabel("Vertical Range", "Khoang cao do ma interaction con co hieu luc."));
-
-        s_ShowInteractionAdvanced = EditorGUILayout.Foldout(s_ShowInteractionAdvanced, "Advanced", true);
-        if (s_ShowInteractionAdvanced)
-        {
-            materialEditor.ShaderProperty(interactionRadiusMultiplier, MakeLabel("Radius Multiplier", "Mo rong hoac thu hep vung phan ung."));
-            materialEditor.ShaderProperty(interactionTrail, MakeLabel("Trail Response", "Dieu khien toc do nha do nghieng cu."));
-            materialEditor.ShaderProperty(interactionRecoveryStrength, MakeLabel("Recovery Strength", "Bien do rung hoi khi co dang tra dan ve trang thai ban dau."));
-            materialEditor.ShaderProperty(interactionRecoveryFrequency, MakeLabel("Recovery Frequency", "Toc do dao dong trong luc hoi."));
-            materialEditor.ShaderProperty(interactionRecoveryNoiseScale, MakeLabel("Recovery Noise Scale", "Do lech pha theo world-space de bai co lon khong rung cung nhip."));
-        }
-        EditorGUI.EndDisabledGroup();
-
-        EditorGUILayout.HelpBox(
-                "Neu scene dang dung GrassInteractionConfig tren interaction system, cac gia tri interaction trong material nay chi la fallback. Luc do ban chinh interaction o mot SO duy nhat thay vi sua o source, config va material rieng le.",
             MessageType.None);
         EditorGUI.indentLevel--;
         EditorGUILayout.Space(4);

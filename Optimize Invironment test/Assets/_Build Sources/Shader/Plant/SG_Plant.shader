@@ -68,16 +68,6 @@ Shader "Custom/Vit/Plant_URP"
         [HideInInspector] _DetailFallbackMode ("Detail Fallback Mode", Float) = 0
         [HideInInspector] _DetailFallbackLightingMin ("Detail Fallback Lighting Min", Range(0,1)) = 0.8
 
-        [Toggle] _EnableInteraction ("Enable Interaction", Float) = 0
-        [HideInInspector] _InteractionStrength ("Interaction Strength", Range(0,2)) = 1
-        [HideInInspector] _InteractionPushAway ("Interaction Push Away", Range(0,2)) = 0.1
-        [HideInInspector] _InteractionFlatten ("Interaction Flatten", Range(0,1)) = 0
-        [HideInInspector] _InteractionRadiusMultiplier ("Interaction Radius Multiplier", Range(0.25,4)) = 1.2
-        [HideInInspector] _InteractionVerticalRange ("Interaction Vertical Range", Range(0.1,5)) = 1
-        [HideInInspector] _InteractionTrail ("Interaction Trail Response", Range(0,1)) = 0.3
-        [HideInInspector] _InteractionRecoveryStrength ("Interaction Recovery Strength", Range(0,1)) = 0.5
-        [HideInInspector] _InteractionRecoveryFrequency ("Interaction Recovery Frequency", Range(0,24)) = 10
-        [HideInInspector] _InteractionRecoveryNoiseScale ("Interaction Recovery Noise Scale", Range(0,8)) = 5
     }
 
     SubShader
@@ -95,19 +85,12 @@ Shader "Custom/Vit/Plant_URP"
         #include "Includes/SG_PlantCommon.hlsl"
         #include "../Grass/SG_GrassShape.hlsl"
         #include "Includes/SG_PlantWind.hlsl"
-        #include "Includes/SG_PlantInteraction.hlsl"
         #include "Includes/SG_PlantTerrainBlend.hlsl"
         #include "Includes/SG_PlantLighting.hlsl"
 
         float3 ApplyPlantMotion(float3 worldPos, float bladeMask)
         {
-            float3 animatedWorldPos = ApplyWind(worldPos, bladeMask);
-            if (UseDetailFallback() <= 0.5)
-            {
-                animatedWorldPos = ApplyInteraction(animatedWorldPos, bladeMask);
-            }
-
-            return animatedWorldPos;
+            return ApplyWind(worldPos, bladeMask);
         }
 
         struct PlantDepthAttributes
