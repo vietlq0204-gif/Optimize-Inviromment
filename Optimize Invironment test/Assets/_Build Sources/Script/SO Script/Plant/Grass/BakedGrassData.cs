@@ -12,6 +12,9 @@ public sealed class BakedGrassData : ScriptableObject
     [SerializeField] private int prototypeCount;
     [SerializeField] private int chunkCount;
     [SerializeField] private int instanceCount;
+    [SerializeField] private float spatialCellSize;
+    [SerializeField] private int maxInstancesPerChunk = 1023;
+    [SerializeField] private List<Cell> cells = new();
 
     public IReadOnlyList<Batch> Batches => batches;
     public Bounds WorldBounds => worldBounds;
@@ -19,6 +22,12 @@ public sealed class BakedGrassData : ScriptableObject
     public int PrototypeCount => prototypeCount;
     public int ChunkCount => chunkCount;
     public int InstanceCount => instanceCount;
+    public float SpatialCellSize => spatialCellSize;
+    public int MaxInstancesPerChunk => maxInstancesPerChunk;
+    public IReadOnlyList<Cell> Cells => cells != null
+        ? (IReadOnlyList<Cell>)cells
+        : (IReadOnlyList<Cell>)Array.Empty<Cell>();
+    public bool HasCellPayloads => cells != null && cells.Count > 0;
     public bool IsEmpty => batches == null || batches.Count == 0;
 
     [Serializable]
@@ -80,21 +89,89 @@ public sealed class BakedGrassData : ScriptableObject
 #endif
     }
 
+    [Serializable]
+    public sealed class Cell
+    {
+        [SerializeField] private int x;
+        [SerializeField] private int z;
+        [SerializeField] private Bounds bounds = new(Vector3.zero, Vector3.one);
+        [SerializeField] private int instanceCount;
+        [SerializeField] private int recordCount;
+        [SerializeField] private TextAsset payload;
+        [SerializeField] private string payloadResourcePath;
+
+        public int X => x;
+        public int Z => z;
+        public Bounds Bounds => bounds;
+        public int InstanceCount => instanceCount;
+        public int RecordCount => recordCount;
+        public TextAsset Payload => payload;
+        public string PayloadResourcePath => payloadResourcePath;
+
 #if UNITY_EDITOR
+        public void SetData(
+            int newX,
+            int newZ,
+            Bounds newBounds,
+            int newInstanceCount,
+            int newRecordCount,
+            TextAsset newPayload,
+            string newPayloadResourcePath)
+        {
+            x = newX;
+            z = newZ;
+            bounds = newBounds;
+            instanceCount = newInstanceCount;
+            recordCount = newRecordCount;
+            payload = newPayload;
+            payloadResourcePath = newPayloadResourcePath;
+        }
+#endif
+    }
+
+#if UNITY_EDITOR
+    public void SetData(
+        List<Batch> newBatches,
+        List<Cell> newCells,
+        Bounds newWorldBounds,
+        int newTerrainCount,
+        int newPrototypeCount,
+        int newChunkCount,
+        int newInstanceCount,
+        float newSpatialCellSize,
+        int newMaxInstancesPerChunk)
+    {
+        batches = newBatches;
+        cells = newCells ?? new List<Cell>();
+        worldBounds = newWorldBounds;
+        terrainCount = newTerrainCount;
+        prototypeCount = newPrototypeCount;
+        chunkCount = newChunkCount;
+        instanceCount = newInstanceCount;
+        spatialCellSize = newSpatialCellSize;
+        maxInstancesPerChunk = newMaxInstancesPerChunk;
+    }
+
     public void SetData(
         List<Batch> newBatches,
         Bounds newWorldBounds,
         int newTerrainCount,
         int newPrototypeCount,
         int newChunkCount,
-        int newInstanceCount)
+        int newInstanceCount,
+        float newSpatialCellSize,
+        int newMaxInstancesPerChunk)
     {
-        batches = newBatches;
-        worldBounds = newWorldBounds;
-        terrainCount = newTerrainCount;
-        prototypeCount = newPrototypeCount;
-        chunkCount = newChunkCount;
-        instanceCount = newInstanceCount;
+        SetData(
+            newBatches,
+            new List<Cell>(),
+            newWorldBounds,
+            newTerrainCount,
+            newPrototypeCount,
+            newChunkCount,
+            newInstanceCount,
+            newSpatialCellSize,
+            newMaxInstancesPerChunk);
     }
 #endif
 }
