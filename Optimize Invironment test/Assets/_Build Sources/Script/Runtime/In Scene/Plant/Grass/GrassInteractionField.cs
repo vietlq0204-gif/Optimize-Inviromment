@@ -32,6 +32,8 @@ public sealed class GrassInteractionField : MonoBehaviour
     private static readonly int LimitParamsId = Shader.PropertyToID("_LimitParams");
     private static readonly int TurbulenceParamsId = Shader.PropertyToID("_TurbulenceParams");
     private static readonly int RecenterParamsId = Shader.PropertyToID("_RecenterParams");
+    private static readonly int StampRegionParamsId = Shader.PropertyToID("_GrassDynamicInteractionStampRegionParams");
+    private static readonly int StampRegionMaxParamsId = Shader.PropertyToID("_GrassDynamicInteractionStampRegionMaxParams");
     private static readonly int DebugColorId = Shader.PropertyToID("_GrassDynamicInteractionDebugColor");
     private static readonly int DebugParamsId = Shader.PropertyToID("_GrassDynamicInteractionDebugParams");
 
@@ -143,7 +145,6 @@ public sealed class GrassInteractionField : MonoBehaviour
 
     private GpuSource[] sourceData = Array.Empty<GpuSource>();
     private ComputeBuffer sourceBuffer;
-    private Material stampMaterial;
     private RenderTexture forceMap;
     private RenderTexture stateA;
     private RenderTexture stateB;
@@ -178,7 +179,7 @@ public sealed class GrassInteractionField : MonoBehaviour
     private void OnEnable()
     {
         EnsureResources();
-        fieldCenter = GetFieldCenter();
+        fieldCenter = GetSnappedFieldCenter(GetFieldCenter());
         fieldCenterInitialized = true;
         UpdateShaderGlobals(false);
     }
@@ -286,7 +287,7 @@ public sealed class GrassInteractionField : MonoBehaviour
             return false;
         }
 
-        if (!simulationShader.HasKernel("Simulate") || !simulationShader.HasKernel("Recenter") || !simulationShader.HasKernel("Stamp"))
+        if (!simulationShader.HasKernel("Simulate") || !simulationShader.HasKernel("Recenter") || !simulationShader.HasKernel("StampSourceRegion"))
         {
             return false;
         }
@@ -303,7 +304,7 @@ public sealed class GrassInteractionField : MonoBehaviour
 
         if (stampKernel < 0)
         {
-            stampKernel = simulationShader.FindKernel("Stamp");
+            stampKernel = simulationShader.FindKernel("StampSourceRegion");
         }
 
         if (sourceData.Length != maxSources)
@@ -425,6 +426,11 @@ public sealed class GrassInteractionField : MonoBehaviour
 
     private void SimulateStep(int sourceCount, float deltaTime, bool shouldRunSimulation)
     {
+        if (!shouldRunSimulation && sourceCount <= 0)
+        {
+            return;
+        }
+
         ClearRenderTexture(forceMap);
         if (sourceCount > 0)
         {
@@ -457,6 +463,8 @@ public sealed class GrassInteractionField : MonoBehaviour
 
     private void RecenterFieldIfNeeded(Vector3 nextFieldCenter)
     {
+        nextFieldCenter = GetSnappedFieldCenter(nextFieldCenter);
+
         if (!fieldCenterInitialized)
         {
             fieldCenter = nextFieldCenter;
@@ -501,8 +509,58 @@ public sealed class GrassInteractionField : MonoBehaviour
         simulationShader.SetVector(FieldParamsId, new Vector4(fieldCenter.x, fieldCenter.z, coverage, 1f));
         simulationShader.SetVector(StampParamsId, new Vector4(speedToWake, sourceCount, 0f, 0f));
 
-        int groups = Mathf.CeilToInt(resolution / (float)ThreadGroupSize);
-        simulationShader.Dispatch(stampKernel, groups, groups, 1);
+        for (int sourceIndex = 0; sourceIndex < sourceCount; sourceIndex++)
+        {
+            if (!TryGetStampPixelBounds(sourceData[sourceIndex], out Vector2Int minPixel, out Vector2Int maxPixel))
+            {
+                continue;
+            }
+
+            simulationShader.SetVector(StampRegionParamsId, new Vector4(sourceIndex, minPixel.x, minPixel.y, 0f));
+            simulationShader.SetVector(StampRegionMaxParamsId, new Vector4(maxPixel.x, maxPixel.y, 0f, 0f));
+
+            int dispatchWidth = maxPixel.x - minPixel.x;
+            int dispatchHeight = maxPixel.y - minPixel.y;
+            int groupsX = Mathf.CeilToInt(dispatchWidth / (float)ThreadGroupSize);
+            int groupsY = Mathf.CeilToInt(dispatchHeight / (float)ThreadGroupSize);
+            simulationShader.Dispatch(stampKernel, groupsX, groupsY, 1);
+        }
+    }
+
+    private bool TryGetStampPixelBounds(GpuSource source, out Vector2Int minPixel, out Vector2Int maxPixel)
+    {
+        Vector2 sourceXZ = new Vector2(source.PositionRadius.x, source.PositionRadius.z);
+        Vector2 velocityXZ = new Vector2(source.VelocityPush.x, source.VelocityPush.z);
+        float speed = velocityXZ.magnitude;
+        Vector2 direction = speed > 0.0001f ? velocityXZ / speed : Vector2.up;
+        Vector2 sideDirection = new Vector2(-direction.y, direction.x);
+
+        float radius = Mathf.Max(source.PositionRadius.w, 0.001f);
+        float wakeLength = speed > 0.05f && source.Response.y > 0f ? Mathf.Max(source.Response.z, 0f) : 0f;
+        float footprintAlong = radius + wakeLength * 0.5f;
+        float footprintSide = Mathf.Max(radius, Mathf.Max(source.WakeShape.x, source.WakeShape.y));
+        Vector2 footprintCenter = sourceXZ - direction * (wakeLength * 0.5f);
+
+        Vector2 a = footprintCenter - sideDirection * footprintSide - direction * footprintAlong;
+        Vector2 b = footprintCenter + sideDirection * footprintSide - direction * footprintAlong;
+        Vector2 c = footprintCenter - sideDirection * footprintSide + direction * footprintAlong;
+        Vector2 d = footprintCenter + sideDirection * footprintSide + direction * footprintAlong;
+
+        Vector2 minWorld = Vector2.Min(Vector2.Min(a, b), Vector2.Min(c, d));
+        Vector2 maxWorld = Vector2.Max(Vector2.Max(a, b), Vector2.Max(c, d));
+
+        Vector2 fieldCenterXZ = new Vector2(fieldCenter.x, fieldCenter.z);
+        Vector2 minUv = ((minWorld - fieldCenterXZ) / coverage) + Vector2.one * 0.5f;
+        Vector2 maxUv = ((maxWorld - fieldCenterXZ) / coverage) + Vector2.one * 0.5f;
+
+        int minX = Mathf.Clamp(Mathf.FloorToInt(minUv.x * resolution) - 1, 0, resolution);
+        int minY = Mathf.Clamp(Mathf.FloorToInt(minUv.y * resolution) - 1, 0, resolution);
+        int maxX = Mathf.Clamp(Mathf.CeilToInt(maxUv.x * resolution) + 1, 0, resolution);
+        int maxY = Mathf.Clamp(Mathf.CeilToInt(maxUv.y * resolution) + 1, 0, resolution);
+
+        minPixel = new Vector2Int(minX, minY);
+        maxPixel = new Vector2Int(maxX, maxY);
+        return maxX > minX && maxY > minY;
     }
 
     private Vector3 GetFieldCenter()
@@ -518,6 +576,19 @@ public sealed class GrassInteractionField : MonoBehaviour
         }
 
         return transform.position + worldOffset;
+    }
+
+    private Vector3 GetSnappedFieldCenter(Vector3 center)
+    {
+        float texelSize = coverage / Mathf.Max(resolution, 1);
+        if (texelSize <= 0f)
+        {
+            return center;
+        }
+
+        center.x = Mathf.Round(center.x / texelSize) * texelSize;
+        center.z = Mathf.Round(center.z / texelSize) * texelSize;
+        return center;
     }
 
     private void OnDrawGizmos()
@@ -706,12 +777,6 @@ public sealed class GrassInteractionField : MonoBehaviour
     {
         sourceBuffer?.Release();
         sourceBuffer = null;
-
-        if (stampMaterial != null)
-        {
-            DestroyImmediateSafe(stampMaterial);
-            stampMaterial = null;
-        }
 
         ReleaseTexture(ref forceMap);
         ReleaseTexture(ref stateA);

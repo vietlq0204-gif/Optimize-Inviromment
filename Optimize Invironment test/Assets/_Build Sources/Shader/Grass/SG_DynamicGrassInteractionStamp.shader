@@ -21,6 +21,7 @@ Shader "Hidden/Vit/DynamicGrassInteractionStamp"
                 float4 positionRadius;
                 float4 velocityPush;
                 float4 response;
+                float4 wakeShape;
             };
 
             StructuredBuffer<GrassInteractionSourceData> _GrassDynamicInteractionSources;
@@ -51,13 +52,16 @@ Shader "Hidden/Vit/DynamicGrassInteractionStamp"
                 float2 velocityXZ = source.velocityPush.xz;
                 float speed = length(velocityXZ);
                 float2 direction = speed > 0.0001 ? velocityXZ / speed : float2(0.0, 1.0);
+                float2 sideDirection = float2(-direction.y, direction.x);
                 float radius = max(source.positionRadius.w, 0.001);
-                float wakeLength = speed * source.response.z;
-                float footprintRadius = radius + max(radius, wakeLength);
+                float wakeLength = speed > 0.05 && source.response.y > 0.0 ? max(source.response.z, 0.0) : 0.0;
+                float footprintAlong = radius + wakeLength * 0.5;
+                float footprintSide = max(radius, max(source.wakeShape.x, source.wakeShape.y));
                 float2 sourceXZ = source.positionRadius.xz;
                 float2 footprintCenter = sourceXZ - direction * (wakeLength * 0.5);
+                float2 corner = GetQuadCorner(vertexID);
 
-                float2 worldXZ = footprintCenter + GetQuadCorner(vertexID) * footprintRadius;
+                float2 worldXZ = footprintCenter + sideDirection * corner.x * footprintSide + direction * corner.y * footprintAlong;
                 float coverage = max(_GrassDynamicInteractionFieldParams.z, 0.001);
                 float2 fieldCenter = _GrassDynamicInteractionFieldParams.xy;
                 float2 uv = ((worldXZ - fieldCenter) / coverage) + 0.5;
@@ -91,19 +95,28 @@ Shader "Hidden/Vit/DynamicGrassInteractionStamp"
                 float flatten = source.response.x * contact01;
                 float turbulence = 0.0;
 
-                if (speed > 0.05 && source.response.y > 0.0)
+                if (speed > 0.05 && source.response.y > 0.0 && source.response.z > 0.001)
                 {
                     float2 sideDirection = float2(-direction.y, direction.x);
                     float behind = dot(toPoint, -direction);
                     float side = abs(dot(toPoint, sideDirection));
-                    float wakeLength = max(radius, speed * source.response.z);
-                    float wakeWidth = radius * lerp(1.25, 2.25, saturate(speed * 0.08));
-                    float wakeAlong = saturate(1.0 - behind / max(wakeLength, 0.001));
-                    float wakeSide = saturate(1.0 - side / max(wakeWidth, 0.001));
-                    float wakeMask = step(0.0, behind) * wakeAlong * wakeSide;
-                    wakeMask = wakeMask * wakeMask * (3.0 - 2.0 * wakeMask);
-
+                    float wakeLength = source.response.z;
                     float speed01 = saturate(speed * _GrassDynamicInteractionStampParams.x);
+
+                    float wakeProgress = saturate(behind / max(wakeLength, 0.001));
+                    float coneStart = min(saturate(source.wakeShape.w), 0.999);
+                    float coneProgress = smoothstep(coneStart, 1.0, wakeProgress);
+                    float startWidth = max(source.wakeShape.x, 0.0);
+                    float tailWidthScale = max(source.wakeShape.y, source.wakeShape.x);
+                    float endWidth = tailWidthScale;
+                    float wakeWidth = max(lerp(startWidth, endWidth, coneProgress), max(radius * 0.01, 0.001));
+                    float edgeFeather = max(wakeWidth * max(source.wakeShape.z, 0.01), max(radius * 0.01, 0.001));
+                    float innerWidth = max(wakeWidth - edgeFeather, wakeWidth * 0.05);
+                    float wakeSide = 1.0 - smoothstep(innerWidth, wakeWidth, side);
+                    float tailFade = pow(saturate(1.0 - wakeProgress), 0.65);
+                    float headFade = smoothstep(0.0, 0.08, wakeProgress);
+                    float wakeMask = step(0.0, behind) * wakeSide * tailFade * headFade;
+
                     force += direction * source.response.y * speed01 * wakeMask;
                     turbulence += source.response.w * speed01 * wakeMask;
                 }
