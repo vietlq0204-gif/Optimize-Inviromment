@@ -26,6 +26,8 @@ public class CameraController : MonoBehaviour
     [SerializeField] private float minPitch = -40f;
     [SerializeField] private float maxPitch = 60f;
     [SerializeField] private float lookAtHeight = 1.5f;
+    [SerializeField] private float shoulderOffset = 0.75f;
+    [SerializeField] private float lookAtSideOffset = 0f;
     [SerializeField] private float mouseDeltaScale = 0.02f;
     [SerializeField] private bool invertXAxis;
     [SerializeField] private bool invertYAxis;
@@ -52,6 +54,18 @@ public class CameraController : MonoBehaviour
     {
         get => lookAtHeight;
         set => lookAtHeight = value;
+    }
+
+    public float ShoulderOffset
+    {
+        get => shoulderOffset;
+        set => shoulderOffset = value;
+    }
+
+    public float LookAtSideOffset
+    {
+        get => lookAtSideOffset;
+        set => lookAtSideOffset = value;
     }
 
     public float MouseDeltaScale
@@ -162,11 +176,13 @@ public class CameraController : MonoBehaviour
         pitchRotation = Mathf.Clamp(pitchRotation, minPitch, maxPitch);
 
         Quaternion rotation = Quaternion.Euler(pitchRotation, yawRotation, 0f);
-        Vector3 desiredPosition = target.position + rotation * offset;
+        Quaternion yawOnlyRotation = Quaternion.Euler(0f, yawRotation, 0f);
+        Vector3 sideOffset = yawOnlyRotation * Vector3.right * shoulderOffset;
+        Vector3 desiredPosition = target.position + rotation * offset + sideOffset;
         Vector3 currentBasePosition = transform.position - shakeOffset;
         Vector3 smoothedPosition = Vector3.Lerp(currentBasePosition, desiredPosition, smoothSpeed);
         transform.position = smoothedPosition + shakeOffset;
-        transform.LookAt(target.position + Vector3.up * lookAtHeight);
+        transform.LookAt(target.position + Vector3.up * lookAtHeight + (yawOnlyRotation * Vector3.right * lookAtSideOffset));
 
         UpdateCameraBlur();
     }
