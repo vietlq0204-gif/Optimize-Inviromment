@@ -5,6 +5,14 @@ using UnityEngine;
 [AddComponentMenu("Environment/Light Controller")]
 public sealed class LightController : MonoBehaviour
 {
+    private enum EnvironmentIntensityPhase
+    {
+        Night,
+        Sunrise,
+        Day,
+        Sunset
+    }
+
     /// <summary>
     /// Đồng hồ chính được sử dụng để lấy thời gian hiện tại.
     /// </summary>
@@ -28,6 +36,30 @@ public sealed class LightController : MonoBehaviour
     /// </summary>
     [SerializeField, Min(0f)]
     private float maxIntensity = 1f;
+
+    [SerializeField, Range(0f, 1f)]
+    private float maxIntensityMultiplier = 0.5f;
+
+    [SerializeField, Range(0f, 1f)]
+    private float intensityMultiplier = 0.5f;
+
+    [SerializeField]
+    private bool overrideEnvironmentIntensityMultiplier = true;
+
+    [SerializeField]
+    private bool snapEnvironmentIntensityMultiplier = true;
+
+    [SerializeField, Range(0f, 1f)]
+    private float sunriseEnvironmentIntensityMultiplier = 0.2f;
+
+    [SerializeField, Range(0f, 1f)]
+    private float dayEnvironmentIntensityMultiplier = 0.5f;
+
+    [SerializeField, Range(0f, 1f)]
+    private float sunsetEnvironmentIntensityMultiplier = 0.2f;
+
+    [SerializeField, Range(0f, 1f)]
+    private float nightEnvironmentIntensityMultiplier = 0f;
 
     [SerializeField]
     private bool useColorTemperature = true;
@@ -62,6 +94,8 @@ public sealed class LightController : MonoBehaviour
     [SerializeField, Range(0f, MainClock.HoursPerDay)]
     private float leaveMinIntensityHour = 4.5f;
 
+    public float IntensityMultiplier => intensityMultiplier;
+
     /// <summary>
     /// Đặt lại thành phần về trạng thái mặc định.
     /// </summary>
@@ -91,6 +125,12 @@ public sealed class LightController : MonoBehaviour
         maxIntensityHour = MainClock.WrapHours(maxIntensityHour);
         reachMinIntensityHour = MainClock.WrapHours(reachMinIntensityHour);
         leaveMinIntensityHour = MainClock.WrapHours(leaveMinIntensityHour);
+        maxIntensityMultiplier = Mathf.Clamp01(maxIntensityMultiplier);
+        intensityMultiplier = Mathf.Clamp(intensityMultiplier, 0f, maxIntensityMultiplier);
+        sunriseEnvironmentIntensityMultiplier = Mathf.Clamp(sunriseEnvironmentIntensityMultiplier, 0f, maxIntensityMultiplier);
+        dayEnvironmentIntensityMultiplier = Mathf.Clamp(dayEnvironmentIntensityMultiplier, 0f, maxIntensityMultiplier);
+        sunsetEnvironmentIntensityMultiplier = Mathf.Clamp(sunsetEnvironmentIntensityMultiplier, 0f, maxIntensityMultiplier);
+        nightEnvironmentIntensityMultiplier = Mathf.Clamp(nightEnvironmentIntensityMultiplier, 0f, maxIntensityMultiplier);
         dayColorTemperature = Mathf.Max(1000f, dayColorTemperature);
         sunriseColorTemperature = Mathf.Max(1000f, sunriseColorTemperature);
         sunsetColorTemperature = Mathf.Max(1000f, sunsetColorTemperature);
@@ -115,13 +155,20 @@ public sealed class LightController : MonoBehaviour
             return;
         }
 
-        float intensityFactor = EvaluateIntensityFactor(clock.CurrentTimeHours);
-        targetLight.intensity = Mathf.Lerp(minIntensity, maxIntensity, intensityFactor);
+        float currentHours = clock.CurrentTimeHours;
+        intensityMultiplier = EvaluateIntensityMultiplier(currentHours) * maxIntensityMultiplier;
+        targetLight.intensity = Mathf.Lerp(minIntensity, maxIntensity, intensityMultiplier);
+
+        if (overrideEnvironmentIntensityMultiplier)
+        {
+            ApplyEnvironmentLightingIntensity(currentHours);
+        }
+
         targetLight.useColorTemperature = useColorTemperature;
 
         if (useColorTemperature)
         {
-            targetLight.colorTemperature = EvaluateColorTemperature(clock.CurrentTimeHours);
+            targetLight.colorTemperature = EvaluateColorTemperature(currentHours);
         }
     }
 
@@ -130,7 +177,7 @@ public sealed class LightController : MonoBehaviour
     /// </summary>
     /// <param name="hours">Giờ hiện tại.</param>
     /// <returns>Hệ số cường độ.</returns>
-    private float EvaluateIntensityFactor(float hours)
+    private float EvaluateIntensityMultiplier(float hours)
     {
         const float minimumSegmentHours = 0.0001f;
 
@@ -159,10 +206,83 @@ public sealed class LightController : MonoBehaviour
 
         if (progressIntoDay <= peakProgress)
         {
-            return progressIntoDay / peakProgress;
+            return Mathf.SmoothStep(0f, 1f, progressIntoDay / peakProgress);
         }
 
-        return 1f - ((progressIntoDay - peakProgress) / (daylightDuration - peakProgress));
+        float progressAfterPeak = (progressIntoDay - peakProgress) / (daylightDuration - peakProgress);
+        return Mathf.SmoothStep(1f, 0f, progressAfterPeak);
+    }
+
+    private void ApplyEnvironmentLightingIntensity(float hours)
+    {
+        float environmentIntensityMultiplier = snapEnvironmentIntensityMultiplier
+            ? EvaluateSnappedEnvironmentIntensityMultiplier(hours)
+            : intensityMultiplier;
+
+        if (Mathf.Approximately(RenderSettings.ambientIntensity, environmentIntensityMultiplier))
+        {
+            return;
+        }
+
+        RenderSettings.ambientIntensity = environmentIntensityMultiplier;
+        DynamicGI.UpdateEnvironment();
+    }
+
+    private float EvaluateSnappedEnvironmentIntensityMultiplier(float hours)
+    {
+        switch (EvaluateEnvironmentIntensityPhase(hours))
+        {
+            case EnvironmentIntensityPhase.Sunrise:
+                return sunriseEnvironmentIntensityMultiplier;
+            case EnvironmentIntensityPhase.Day:
+                return dayEnvironmentIntensityMultiplier;
+            case EnvironmentIntensityPhase.Sunset:
+                return sunsetEnvironmentIntensityMultiplier;
+            default:
+                return nightEnvironmentIntensityMultiplier;
+        }
+    }
+
+    private EnvironmentIntensityPhase EvaluateEnvironmentIntensityPhase(float hours)
+    {
+        const float minimumSegmentHours = 0.0001f;
+
+        hours = MainClock.WrapHours(hours);
+
+        float dayStartHour = MainClock.WrapHours(leaveMinIntensityHour);
+        float dayEndHour = MainClock.WrapHours(reachMinIntensityHour);
+        float peakHour = MainClock.WrapHours(maxIntensityHour);
+        float daylightDuration = GetForwardHours(dayStartHour, dayEndHour);
+
+        if (daylightDuration <= minimumSegmentHours * 2f)
+        {
+            return EnvironmentIntensityPhase.Night;
+        }
+
+        float progressIntoDay = GetForwardHours(dayStartHour, hours);
+        if (progressIntoDay >= daylightDuration)
+        {
+            return EnvironmentIntensityPhase.Night;
+        }
+
+        float peakProgress = Mathf.Clamp(
+            GetForwardHours(dayStartHour, peakHour),
+            minimumSegmentHours,
+            daylightDuration - minimumSegmentHours);
+        float sunriseEndProgress = peakProgress * 0.5f;
+        float sunsetStartProgress = peakProgress + ((daylightDuration - peakProgress) * 0.5f);
+
+        if (progressIntoDay <= sunriseEndProgress)
+        {
+            return EnvironmentIntensityPhase.Sunrise;
+        }
+
+        if (progressIntoDay >= sunsetStartProgress)
+        {
+            return EnvironmentIntensityPhase.Sunset;
+        }
+
+        return EnvironmentIntensityPhase.Day;
     }
 
     private float EvaluateColorTemperature(float hours)

@@ -14,6 +14,7 @@ public sealed class BakedGrassRenderer : MonoBehaviour
 {
     private const string DefaultBakedFolderName = "Baked";
     private const string FallbackBakedAssetFolder = "Assets/Grass/Baked";
+    private const int MaxInstancedDrawCount = 1023;
 
     private enum ShadowCastingOverride
     {
@@ -42,6 +43,13 @@ public sealed class BakedGrassRenderer : MonoBehaviour
         Custom = 3,
     }
 
+    private enum InstancedRenderBackend
+    {
+        RenderMeshInstanced = 0,
+        DrawMeshInstanced = 1,
+        CullOnly = 2,
+    }
+
     public struct RuntimeStats
     {
         public int TotalChunks;
@@ -56,6 +64,8 @@ public sealed class BakedGrassRenderer : MonoBehaviour
         public int VisibleCells;
         public int CachedCells;
         public int CellPayloadLoads;
+        public int CheckedCells;
+        public int SpatiallySkippedCells;
     }
 
     [Header("Runtime")]
@@ -63,6 +73,10 @@ public sealed class BakedGrassRenderer : MonoBehaviour
     [SerializeField] private PlatformFilter platformFilter = PlatformFilter.MobileAndWindows;
     [SerializeField] private bool renderInEditor = false;
     [SerializeField] private bool useMainCameraFrustumCulling = true;
+    [Tooltip("Disables Terrain detail density in Play Mode while this renderer is active, so baked grass replaces the built-in Terrain detail renderer instead of drawing on top of it.")]
+    [SerializeField] private bool suppressTerrainDetailsWhileRendering = true;
+    [Tooltip("Cull Only is a diagnostic mode: it keeps runtime culling/stats active but skips grass draw submission.")]
+    [SerializeField] private InstancedRenderBackend instancedRenderBackend = InstancedRenderBackend.RenderMeshInstanced;
 
     [Header("Quality")]
     [SerializeField] private GrassQualityProfile qualityProfile = GrassQualityProfile.Auto;
@@ -102,6 +116,14 @@ public sealed class BakedGrassRenderer : MonoBehaviour
     private readonly Dictionary<int, LoadedCell> loadedCells = new();
     private readonly HashSet<int> invalidCellPayloads = new();
     private readonly List<int> cacheRemovalBuffer = new();
+    private readonly Dictionary<int, InstancedDrawBuffer> instancedDrawBuffers = new();
+    private readonly List<int> activeInstancedDrawBufferKeys = new();
+    private readonly HashSet<int> activeInstancedDrawBufferKeySet = new();
+    private readonly HashSet<Terrain> suppressedTerrainDetails = new();
+    private readonly List<Terrain> terrainSuppressionScratch = new();
+    private readonly List<Terrain> terrainSuppressionReleaseBuffer = new();
+    private readonly Dictionary<RuntimeCellKey, int> cellIndexByKey = new();
+    private static readonly Dictionary<Terrain, TerrainDetailSuppressionState> terrainDetailSuppressions = new();
     private RuntimeStats runtimeStats;
     private float nextRuntimeStatsLogTime;
     private int frameIndex;
@@ -149,7 +171,9 @@ public sealed class BakedGrassRenderer : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (!ShouldRender())
+        bool shouldRender = ShouldRender();
+        SyncTerrainDetailSuppression(shouldRender);
+        if (!shouldRender)
         {
             return;
         }
@@ -157,11 +181,13 @@ public sealed class BakedGrassRenderer : MonoBehaviour
         if (cachedData != bakedData)
         {
             ClearCellCache();
+            RebuildCellIndex();
             cachedData = bakedData;
         }
 
         frameIndex++;
         runtimeStats = default;
+        BeginInstancedDrawBufferFrame();
 
         float maxRenderDistance = ResolveMaxRenderDistance();
         float maxRenderDistanceSqr = maxRenderDistance * maxRenderDistance;
@@ -183,6 +209,7 @@ public sealed class BakedGrassRenderer : MonoBehaviour
                 hasDistanceCamera,
                 cameraPosition,
                 maxRenderDistanceSqr);
+            FlushInstancedDrawBuffers();
             PruneCellCache();
             runtimeStats.CachedCells = loadedCells.Count;
             LogRuntimeStatsIfNeeded();
@@ -201,7 +228,13 @@ public sealed class BakedGrassRenderer : MonoBehaviour
 
     private void OnDisable()
     {
+        ReleaseTerrainDetailSuppression();
         ClearCellCache();
+    }
+
+    private void OnDestroy()
+    {
+        ReleaseTerrainDetailSuppression();
     }
 
     private void RenderLegacyChunks(
@@ -262,7 +295,9 @@ public sealed class BakedGrassRenderer : MonoBehaviour
                         null,
                         shadowCastingMode,
                         shouldReceiveShadows,
-                        batch.Layer);
+                        batch.Layer,
+                        null,
+                        LightProbeUsage.Off);
 
                     runtimeStats.InstancedDrawCalls++;
                     continue;
@@ -298,40 +333,113 @@ public sealed class BakedGrassRenderer : MonoBehaviour
         var cells = bakedData.Cells;
         runtimeStats.TotalCells = cells.Count;
 
+        if (hasDistanceCamera && cellIndexByKey.Count > 0 && bakedData.SpatialCellSize > 0f)
+        {
+            RenderNearbyCellPayloads(
+                supportsInstancing,
+                hasFrustumCamera,
+                hasDistanceCamera,
+                cameraPosition,
+                maxRenderDistanceSqr);
+            return;
+        }
+
         for (int cellIndex = 0; cellIndex < cells.Count; cellIndex++)
         {
-            BakedGrassData.Cell cell = cells[cellIndex];
-            if (cell == null || !HasCellPayload(cell) || cell.InstanceCount == 0)
-            {
-                continue;
-            }
+            RenderCellPayload(
+                cellIndex,
+                supportsInstancing,
+                hasFrustumCamera,
+                hasDistanceCamera,
+                cameraPosition,
+                maxRenderDistanceSqr);
+        }
+    }
 
-            if (hasFrustumCamera && !GeometryUtility.TestPlanesAABB(frustumPlanes, cell.Bounds))
-            {
-                runtimeStats.FrustumCulledChunks++;
-                continue;
-            }
+    private void RenderNearbyCellPayloads(
+        bool supportsInstancing,
+        bool hasFrustumCamera,
+        bool hasDistanceCamera,
+        Vector3 cameraPosition,
+        float maxRenderDistanceSqr)
+    {
+        float maxRenderDistance = Mathf.Sqrt(maxRenderDistanceSqr);
+        float cellSize = Mathf.Max(bakedData.SpatialCellSize, 1f);
+        int paddingCells = 1;
+        int minX = Mathf.FloorToInt((cameraPosition.x - maxRenderDistance) / cellSize) - paddingCells;
+        int maxX = Mathf.FloorToInt((cameraPosition.x + maxRenderDistance) / cellSize) + paddingCells;
+        int minZ = Mathf.FloorToInt((cameraPosition.z - maxRenderDistance) / cellSize) - paddingCells;
+        int maxZ = Mathf.FloorToInt((cameraPosition.z + maxRenderDistance) / cellSize) + paddingCells;
 
-            if (hasDistanceCamera && cell.Bounds.SqrDistance(cameraPosition) > maxRenderDistanceSqr)
+        for (int z = minZ; z <= maxZ; z++)
+        {
+            for (int x = minX; x <= maxX; x++)
             {
-                runtimeStats.DistanceCulledChunks++;
-                continue;
-            }
+                if (!cellIndexByKey.TryGetValue(new RuntimeCellKey(x, z), out int cellIndex))
+                {
+                    continue;
+                }
 
-            LoadedCell loadedCell = LoadCell(cellIndex, cell);
-            if (loadedCell == null)
-            {
-                continue;
+                RenderCellPayload(
+                    cellIndex,
+                    supportsInstancing,
+                    hasFrustumCamera,
+                    hasDistanceCamera,
+                    cameraPosition,
+                    maxRenderDistanceSqr);
             }
+        }
 
-            runtimeStats.VisibleCells++;
-            loadedCell.LastUsedFrame = frameIndex;
+        runtimeStats.SpatiallySkippedCells = Mathf.Max(0, runtimeStats.TotalCells - runtimeStats.CheckedCells);
+    }
 
-            for (int chunkIndex = 0; chunkIndex < loadedCell.Chunks.Count; chunkIndex++)
-            {
-                RuntimeDrawChunk chunk = loadedCell.Chunks[chunkIndex];
-                DrawRuntimeChunk(chunk, supportsInstancing);
-            }
+    private void RenderCellPayload(
+        int cellIndex,
+        bool supportsInstancing,
+        bool hasFrustumCamera,
+        bool hasDistanceCamera,
+        Vector3 cameraPosition,
+        float maxRenderDistanceSqr)
+    {
+        var cells = bakedData.Cells;
+        if (cellIndex < 0 || cellIndex >= cells.Count)
+        {
+            return;
+        }
+
+        BakedGrassData.Cell cell = cells[cellIndex];
+        if (cell == null || !HasCellPayload(cell) || cell.InstanceCount == 0)
+        {
+            return;
+        }
+
+        runtimeStats.CheckedCells++;
+
+        if (hasFrustumCamera && !GeometryUtility.TestPlanesAABB(frustumPlanes, cell.Bounds))
+        {
+            runtimeStats.FrustumCulledChunks++;
+            return;
+        }
+
+        if (hasDistanceCamera && cell.Bounds.SqrDistance(cameraPosition) > maxRenderDistanceSqr)
+        {
+            runtimeStats.DistanceCulledChunks++;
+            return;
+        }
+
+        LoadedCell loadedCell = LoadCell(cellIndex, cell);
+        if (loadedCell == null)
+        {
+            return;
+        }
+
+        runtimeStats.VisibleCells++;
+        loadedCell.LastUsedFrame = frameIndex;
+
+        for (int chunkIndex = 0; chunkIndex < loadedCell.Chunks.Count; chunkIndex++)
+        {
+            RuntimeDrawChunk chunk = loadedCell.Chunks[chunkIndex];
+            DrawRuntimeChunk(chunk, supportsInstancing);
         }
     }
 
@@ -354,27 +462,20 @@ public sealed class BakedGrassRenderer : MonoBehaviour
         runtimeStats.VisibleChunks++;
         runtimeStats.DrawnInstances += chunk.Matrices.Length;
 
-        bool useInstancing = supportsInstancing && batch.Material.enableInstancing;
-        ShadowCastingMode shadowCastingMode = ResolveShadowCastingMode(batch);
-        bool shouldReceiveShadows = ResolveReceiveShadows(batch);
-
-        if (useInstancing)
+        if (instancedRenderBackend == InstancedRenderBackend.CullOnly)
         {
-            Graphics.DrawMeshInstanced(
-                batch.Mesh,
-                batch.SubMeshIndex,
-                batch.Material,
-                chunk.Matrices,
-                chunk.Matrices.Length,
-                null,
-                shadowCastingMode,
-                shouldReceiveShadows,
-                batch.Layer);
-
-            runtimeStats.InstancedDrawCalls++;
             return;
         }
 
+        bool useInstancing = supportsInstancing && batch.Material.enableInstancing;
+        if (useInstancing)
+        {
+            QueueInstancedDraw(chunk.BatchIndex, chunk.Matrices);
+            return;
+        }
+
+        ShadowCastingMode shadowCastingMode = ResolveShadowCastingMode(batch);
+        bool shouldReceiveShadows = ResolveReceiveShadows(batch);
         for (int instanceIndex = 0; instanceIndex < chunk.Matrices.Length; instanceIndex++)
         {
             Graphics.DrawMesh(
@@ -391,6 +492,121 @@ public sealed class BakedGrassRenderer : MonoBehaviour
         }
 
         runtimeStats.FallbackDrawCalls += chunk.Matrices.Length;
+    }
+
+    private void BeginInstancedDrawBufferFrame()
+    {
+        activeInstancedDrawBufferKeys.Clear();
+        activeInstancedDrawBufferKeySet.Clear();
+    }
+
+    private void QueueInstancedDraw(int batchIndex, Matrix4x4[] matrices)
+    {
+        if (matrices == null || matrices.Length == 0)
+        {
+            return;
+        }
+
+        if (!instancedDrawBuffers.TryGetValue(batchIndex, out InstancedDrawBuffer buffer))
+        {
+            buffer = new InstancedDrawBuffer(MaxInstancedDrawCount);
+            instancedDrawBuffers.Add(batchIndex, buffer);
+        }
+
+        if (activeInstancedDrawBufferKeySet.Add(batchIndex))
+        {
+            activeInstancedDrawBufferKeys.Add(batchIndex);
+        }
+
+        int sourceIndex = 0;
+        while (sourceIndex < matrices.Length)
+        {
+            int copyCount = Mathf.Min(MaxInstancedDrawCount - buffer.Count, matrices.Length - sourceIndex);
+            Array.Copy(matrices, sourceIndex, buffer.Matrices, buffer.Count, copyCount);
+            buffer.Count += copyCount;
+            sourceIndex += copyCount;
+
+            if (buffer.Count >= MaxInstancedDrawCount)
+            {
+                FlushInstancedDrawBuffer(batchIndex, buffer);
+            }
+        }
+    }
+
+    private void FlushInstancedDrawBuffers()
+    {
+        for (int i = 0; i < activeInstancedDrawBufferKeys.Count; i++)
+        {
+            int batchIndex = activeInstancedDrawBufferKeys[i];
+            if (instancedDrawBuffers.TryGetValue(batchIndex, out InstancedDrawBuffer buffer))
+            {
+                FlushInstancedDrawBuffer(batchIndex, buffer);
+            }
+        }
+
+        activeInstancedDrawBufferKeys.Clear();
+        activeInstancedDrawBufferKeySet.Clear();
+    }
+
+    private void FlushInstancedDrawBuffer(int batchIndex, InstancedDrawBuffer buffer)
+    {
+        if (buffer == null || buffer.Count == 0)
+        {
+            return;
+        }
+
+        var batches = bakedData.Batches;
+        if (batchIndex < 0 || batchIndex >= batches.Count)
+        {
+            buffer.Count = 0;
+            return;
+        }
+
+        BakedGrassData.Batch batch = batches[batchIndex];
+        if (batch == null || batch.Mesh == null || batch.Material == null)
+        {
+            buffer.Count = 0;
+            return;
+        }
+
+        if (instancedRenderBackend == InstancedRenderBackend.RenderMeshInstanced)
+        {
+            RenderParams renderParams = new(batch.Material)
+            {
+                layer = batch.Layer,
+                lightProbeUsage = LightProbeUsage.Off,
+                motionVectorMode = MotionVectorGenerationMode.ForceNoMotion,
+                receiveShadows = ResolveReceiveShadows(batch),
+                reflectionProbeUsage = ReflectionProbeUsage.Off,
+                shadowCastingMode = ResolveShadowCastingMode(batch),
+                worldBounds = bakedData.WorldBounds,
+            };
+
+            Graphics.RenderMeshInstanced(
+                renderParams,
+                batch.Mesh,
+                batch.SubMeshIndex,
+                buffer.Matrices,
+                buffer.Count);
+        }
+        else
+        {
+            Graphics.DrawMeshInstanced(
+                batch.Mesh,
+                batch.SubMeshIndex,
+                batch.Material,
+                buffer.Matrices,
+                buffer.Count,
+                null,
+                ResolveShadowCastingMode(batch),
+                ResolveReceiveShadows(batch),
+                batch.Layer,
+                null,
+                LightProbeUsage.Off);
+        }
+
+        runtimeStats.InstancedDrawCalls++;
+        buffer.Count = 0;
     }
 
     private LoadedCell LoadCell(int cellIndex, BakedGrassData.Cell cell)
@@ -525,6 +741,170 @@ public sealed class BakedGrassRenderer : MonoBehaviour
     {
         loadedCells.Clear();
         invalidCellPayloads.Clear();
+    }
+
+    private void RebuildCellIndex()
+    {
+        cellIndexByKey.Clear();
+        if (bakedData == null)
+        {
+            return;
+        }
+
+        var cells = bakedData.Cells;
+        for (int cellIndex = 0; cellIndex < cells.Count; cellIndex++)
+        {
+            BakedGrassData.Cell cell = cells[cellIndex];
+            if (cell == null)
+            {
+                continue;
+            }
+
+            RuntimeCellKey key = new(cell.X, cell.Z);
+            if (!cellIndexByKey.ContainsKey(key))
+            {
+                cellIndexByKey.Add(key, cellIndex);
+            }
+        }
+    }
+
+    private void SyncTerrainDetailSuppression(bool shouldRender)
+    {
+        if (!Application.isPlaying || !suppressTerrainDetailsWhileRendering || !shouldRender)
+        {
+            ReleaseTerrainDetailSuppression();
+            return;
+        }
+
+        CollectRuntimeTerrains(terrainSuppressionScratch);
+        for (int i = 0; i < terrainSuppressionScratch.Count; i++)
+        {
+            AcquireTerrainDetailSuppression(terrainSuppressionScratch[i]);
+        }
+
+        terrainSuppressionReleaseBuffer.Clear();
+        foreach (Terrain terrain in suppressedTerrainDetails)
+        {
+            if (terrain == null || !terrainSuppressionScratch.Contains(terrain))
+            {
+                terrainSuppressionReleaseBuffer.Add(terrain);
+            }
+        }
+
+        for (int i = 0; i < terrainSuppressionReleaseBuffer.Count; i++)
+        {
+            ReleaseTerrainDetailSuppression(terrainSuppressionReleaseBuffer[i]);
+        }
+
+        terrainSuppressionScratch.Clear();
+        terrainSuppressionReleaseBuffer.Clear();
+    }
+
+    private void CollectRuntimeTerrains(List<Terrain> results)
+    {
+        results.Clear();
+        if (sourceTerrains != null)
+        {
+            for (int i = 0; i < sourceTerrains.Length; i++)
+            {
+                AddUniqueTerrain(results, sourceTerrains[i]);
+            }
+        }
+
+        if (results.Count > 0 || !useActiveTerrainsWhenSourceTerrainsEmpty)
+        {
+            return;
+        }
+
+        Terrain[] activeTerrains = Terrain.activeTerrains;
+        if (activeTerrains == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < activeTerrains.Length; i++)
+        {
+            AddUniqueTerrain(results, activeTerrains[i]);
+        }
+    }
+
+    private static void AddUniqueTerrain(List<Terrain> terrains, Terrain terrain)
+    {
+        if (terrain != null && !terrains.Contains(terrain))
+        {
+            terrains.Add(terrain);
+        }
+    }
+
+    private void AcquireTerrainDetailSuppression(Terrain terrain)
+    {
+        if (terrain == null || suppressedTerrainDetails.Contains(terrain))
+        {
+            return;
+        }
+
+        if (!terrainDetailSuppressions.TryGetValue(terrain, out TerrainDetailSuppressionState state))
+        {
+            state = new TerrainDetailSuppressionState
+            {
+                OriginalDetailDensity = terrain.detailObjectDensity,
+            };
+            terrainDetailSuppressions.Add(terrain, state);
+            terrain.detailObjectDensity = 0f;
+        }
+
+        state.Owners.Add(this);
+        suppressedTerrainDetails.Add(terrain);
+    }
+
+    private void ReleaseTerrainDetailSuppression()
+    {
+        if (suppressedTerrainDetails.Count == 0)
+        {
+            return;
+        }
+
+        terrainSuppressionReleaseBuffer.Clear();
+        foreach (Terrain terrain in suppressedTerrainDetails)
+        {
+            terrainSuppressionReleaseBuffer.Add(terrain);
+        }
+
+        for (int i = 0; i < terrainSuppressionReleaseBuffer.Count; i++)
+        {
+            ReleaseTerrainDetailSuppression(terrainSuppressionReleaseBuffer[i]);
+        }
+
+        terrainSuppressionReleaseBuffer.Clear();
+    }
+
+    private void ReleaseTerrainDetailSuppression(Terrain terrain)
+    {
+        if (terrain == null)
+        {
+            suppressedTerrainDetails.Remove(terrain);
+            terrainDetailSuppressions.Remove(terrain);
+            return;
+        }
+
+        if (!suppressedTerrainDetails.Remove(terrain))
+        {
+            return;
+        }
+
+        if (!terrainDetailSuppressions.TryGetValue(terrain, out TerrainDetailSuppressionState state))
+        {
+            return;
+        }
+
+        state.Owners.Remove(this);
+        if (state.Owners.Count > 0)
+        {
+            return;
+        }
+
+        terrain.detailObjectDensity = state.OriginalDetailDensity;
+        terrainDetailSuppressions.Remove(terrain);
     }
 
     private bool ShouldRender()
@@ -664,6 +1044,53 @@ public sealed class BakedGrassRenderer : MonoBehaviour
         public int InstanceCount { get; }
         public int LastUsedFrame { get; set; }
         public List<RuntimeDrawChunk> Chunks { get; } = new();
+    }
+
+    private sealed class InstancedDrawBuffer
+    {
+        public InstancedDrawBuffer(int capacity)
+        {
+            Matrices = new Matrix4x4[capacity];
+        }
+
+        public Matrix4x4[] Matrices { get; }
+        public int Count { get; set; }
+    }
+
+    private sealed class TerrainDetailSuppressionState
+    {
+        public float OriginalDetailDensity;
+        public HashSet<BakedGrassRenderer> Owners { get; } = new();
+    }
+
+    private readonly struct RuntimeCellKey : IEquatable<RuntimeCellKey>
+    {
+        public RuntimeCellKey(int x, int z)
+        {
+            X = x;
+            Z = z;
+        }
+
+        public int X { get; }
+        public int Z { get; }
+
+        public bool Equals(RuntimeCellKey other)
+        {
+            return X == other.X && Z == other.Z;
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is RuntimeCellKey other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                return (X * 397) ^ Z;
+            }
+        }
     }
 
     private readonly struct RuntimeDrawChunk

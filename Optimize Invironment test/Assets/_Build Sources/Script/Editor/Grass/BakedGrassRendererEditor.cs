@@ -57,7 +57,7 @@ public sealed class BakedGrassRendererEditor : Editor
             return;
         }
 
-        string payloadFolder = AssetDatabase.GenerateUniqueAssetPath(GetPayloadFolderPath(data));
+        string payloadFolder = GetUniquePayloadFolderPath(data);
         StreamingBakeContext bakeContext = null;
 
         Dictionary<BatchKey, int> batchIndexByKey = new();
@@ -207,7 +207,7 @@ public sealed class BakedGrassRendererEditor : Editor
             AssetDatabase.Refresh();
 
             List<BakedGrassData.Batch> bakedBatches = BuildBatches(batchKeys);
-            List<BakedGrassData.Cell> bakedCells = bakeContext.BuildCells(payloadFolder);
+            List<BakedGrassData.Cell> bakedCells = bakeContext.BuildCells();
             Bounds worldBounds = bakeContext.HasWorldBounds
                 ? bakeContext.WorldBounds
                 : new Bounds(Vector3.zero, Vector3.one);
@@ -317,6 +317,81 @@ public sealed class BakedGrassRendererEditor : Editor
         return NormalizeAssetPath(Path.Combine("Assets/Resources/BakedGrass", $"{name}{suffix}_Cells"));
     }
 
+    private static string GetUniquePayloadFolderPath(BakedGrassData data)
+    {
+        string desiredFolder = NormalizeAssetPath(GetPayloadFolderPath(data));
+        EnsureFolderExists(GetAssetDirectoryName(desiredFolder));
+
+        string uniqueFolder = NormalizeAssetPath(AssetDatabase.GenerateUniqueAssetPath(desiredFolder));
+        if (string.IsNullOrWhiteSpace(uniqueFolder))
+        {
+            uniqueFolder = GenerateFallbackUniqueAssetPath(desiredFolder);
+        }
+
+        if (!IsResourcesAssetPath(uniqueFolder))
+        {
+            throw new InvalidDataException($"Baked grass payload folder must be under a Resources folder: {uniqueFolder}");
+        }
+
+        return uniqueFolder;
+    }
+
+    private static string GenerateFallbackUniqueAssetPath(string desiredPath)
+    {
+        string normalizedPath = NormalizeAssetPath(desiredPath);
+        if (string.IsNullOrWhiteSpace(normalizedPath))
+        {
+            throw new InvalidDataException("Baked grass payload folder path is empty.");
+        }
+
+        if (!AssetPathExists(normalizedPath))
+        {
+            return normalizedPath;
+        }
+
+        for (int index = 1; index < 10000; index++)
+        {
+            string candidatePath = $"{normalizedPath} {index}";
+            if (!AssetPathExists(candidatePath))
+            {
+                return candidatePath;
+            }
+        }
+
+        throw new IOException($"Could not find a unique baked grass payload folder for: {normalizedPath}");
+    }
+
+    private static bool AssetPathExists(string assetPath)
+    {
+        if (string.IsNullOrWhiteSpace(assetPath))
+        {
+            return false;
+        }
+
+        string normalizedPath = NormalizeAssetPath(assetPath);
+        if (AssetDatabase.IsValidFolder(normalizedPath))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(AssetDatabase.AssetPathToGUID(normalizedPath)))
+        {
+            return true;
+        }
+
+        string fullPath = AssetPathToFullPath(normalizedPath);
+        return File.Exists(fullPath) || Directory.Exists(fullPath);
+    }
+
+    private static string GetAssetDirectoryName(string assetPath)
+    {
+        string normalizedPath = NormalizeAssetPath(assetPath);
+        int slashIndex = normalizedPath.LastIndexOf('/');
+        return slashIndex <= 0
+            ? "Assets"
+            : normalizedPath.Substring(0, slashIndex);
+    }
+
     private static string GetResourcesPath(string assetPath)
     {
         string normalizedPath = NormalizeAssetPath(assetPath);
@@ -347,6 +422,20 @@ public sealed class BakedGrassRendererEditor : Editor
         }
 
         return resourcePath;
+    }
+
+    private static bool IsResourcesAssetPath(string assetPath)
+    {
+        string normalizedPath = NormalizeAssetPath(assetPath);
+        if (string.IsNullOrWhiteSpace(normalizedPath))
+        {
+            return false;
+        }
+
+        return string.Equals(normalizedPath, "Assets/Resources", StringComparison.OrdinalIgnoreCase)
+            || normalizedPath.StartsWith("Assets/Resources/", StringComparison.OrdinalIgnoreCase)
+            || normalizedPath.IndexOf("/Resources/", StringComparison.OrdinalIgnoreCase) >= 0
+            || normalizedPath.EndsWith("/Resources", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void DeleteAssetFolderIfExists(string assetFolder)
@@ -464,21 +553,37 @@ public sealed class BakedGrassRendererEditor : Editor
 
     private static void EnsureFolderExists(string folderPath)
     {
-        string normalizedPath = folderPath.Replace('\\', '/');
+        string normalizedPath = NormalizeAssetPath(folderPath);
+        if (string.IsNullOrWhiteSpace(normalizedPath))
+        {
+            throw new InvalidDataException("Cannot create an empty asset folder path.");
+        }
+
+        if (!string.Equals(normalizedPath, "Assets", StringComparison.OrdinalIgnoreCase)
+            && !normalizedPath.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException($"Asset folder path must be under Assets: {folderPath}");
+        }
+
         if (AssetDatabase.IsValidFolder(normalizedPath))
         {
             return;
         }
 
         string[] segments = normalizedPath.Split('/');
-        if (segments.Length == 0)
+        if (segments.Length == 0 || !string.Equals(segments[0], "Assets", StringComparison.OrdinalIgnoreCase))
         {
-            return;
+            throw new InvalidDataException($"Asset folder path must start with Assets: {folderPath}");
         }
 
         string currentPath = segments[0];
         for (int i = 1; i < segments.Length; i++)
         {
+            if (string.IsNullOrWhiteSpace(segments[i]))
+            {
+                throw new InvalidDataException($"Asset folder path contains an empty segment: {folderPath}");
+            }
+
             string nextPath = $"{currentPath}/{segments[i]}";
             if (!AssetDatabase.IsValidFolder(nextPath))
             {
@@ -671,6 +776,8 @@ public sealed class BakedGrassRendererEditor : Editor
         EditorGUILayout.HelpBox(
             $"Runtime Grass\n" +
             $"Visible Cells: {stats.VisibleCells}/{stats.TotalCells}\n" +
+            $"Checked Cells: {stats.CheckedCells}/{stats.TotalCells}\n" +
+            $"Spatially Skipped Cells: {stats.SpatiallySkippedCells}\n" +
             $"Cached Cells: {stats.CachedCells}\n" +
             $"Visible Chunks: {stats.VisibleChunks}/{stats.TotalChunks}\n" +
             $"Drawn Instances: {stats.DrawnInstances}/{stats.TotalInstances}\n" +
@@ -836,6 +943,11 @@ public sealed class BakedGrassRendererEditor : Editor
         public StreamingBakeContext(string payloadAssetFolder, float spatialCellSize, int maxInstancesPerRecord)
         {
             this.payloadAssetFolder = NormalizeAssetPath(payloadAssetFolder);
+            if (!IsResourcesAssetPath(this.payloadAssetFolder))
+            {
+                throw new InvalidDataException($"Baked grass payload folder must be under a Resources folder: {payloadAssetFolder}");
+            }
+
             this.spatialCellSize = Mathf.Max(1f, spatialCellSize);
             this.maxInstancesPerRecord = Mathf.Clamp(maxInstancesPerRecord, 1, 1023);
         }
@@ -888,7 +1000,7 @@ public sealed class BakedGrassRendererEditor : Editor
             pendingMatrixCount = 0;
         }
 
-        public List<BakedGrassData.Cell> BuildCells(string finalPayloadFolder)
+        public List<BakedGrassData.Cell> BuildCells()
         {
             List<CellKey> sortedKeys = new(cells.Keys);
             sortedKeys.Sort();
@@ -903,8 +1015,7 @@ public sealed class BakedGrassRendererEditor : Editor
                     continue;
                 }
 
-                string finalPayloadPath = NormalizeAssetPath(Path.Combine(finalPayloadFolder, GetCellFileName(key)));
-                string resourcePath = GetResourcesPath(finalPayloadPath);
+                string resourcePath = GetResourcesPath(metadata.AssetPath);
 
                 BakedGrassData.Cell cell = new();
                 cell.SetData(
