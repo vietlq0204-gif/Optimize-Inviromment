@@ -45,7 +45,7 @@ Shader "Custom/Vit/Plant_URP"
         [HideInInspector] _WindTextureWaveInfluence ("Noise To Vibrate", Range(0,1)) = 0
 
         [HideInInspector] _NearColor ("Near Color", Color) = (1,1,1,1)
-        [HideInInspector] _FarColor ("Far Color", Color) = (0.8564891,1,0,1)
+        [HideInInspector] _FarColor ("Far Color", Color) = (1,1,1,1)
         [HideInInspector] _NearFarRange ("Near/Far Range", Vector) = (5,18,0,0)
         [HideInInspector] _BottomColor ("Bottom Color", Color) = (1,1,1,1)
         [HideInInspector] _HeightBlend ("Height Blend", Range(0,20)) = 5
