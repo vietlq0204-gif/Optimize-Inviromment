@@ -1,14 +1,14 @@
 using UnityEngine;
 
 /// <summary>
-/// Pushes a manually supplied terrain color map to the grass shader globals.
+/// Pushes a manually supplied terrain color map to the plant shader globals.
 /// </summary>
 [ExecuteAlways]
 public sealed class GrassTerrainColorMapController : MonoBehaviour
 {
-    private static readonly int TerrainColorMapId = Shader.PropertyToID("_GrassTerrainColorMap");
-    private static readonly int TerrainColorBoundsId = Shader.PropertyToID("_GrassTerrainColorMapWorldBounds");
-    private static readonly int TerrainColorParamsId = Shader.PropertyToID("_GrassTerrainColorMapParams");
+    private static readonly int TerrainColorMapId = Shader.PropertyToID("_PlantTerrainColorMap");
+    private static readonly int TerrainColorBoundsId = Shader.PropertyToID("_PlantTerrainColorMapWorldBounds");
+    private static readonly int TerrainColorParamsId = Shader.PropertyToID("_PlantTerrainColorMapParams");
 
     [SerializeField] private Texture terrainColorMap;
     [SerializeField] private Vector2 worldMin;

@@ -14,12 +14,12 @@ float4 _SimulationParams; // x dt, y bend spring, z bend damping, w force streng
 float4 _LimitParams; // x max bend, y flatten force, z flatten spring, w flatten damping
 float4 _TurbulenceParams; // x max flatten, y turbulence strength, z time
 float4 _RecenterParams; // xy old texture uv offset caused by field center movement
-float4 _GrassDynamicInteractionFieldParams; // x center x, y center z, z coverage, w enabled
-float4 _GrassDynamicInteractionStampParams; // x speed to wake, y source count
-float4 _GrassDynamicInteractionStampRegionParams; // x source index, y min pixel x, z min pixel y
-float4 _GrassDynamicInteractionStampRegionMaxParams; // x max pixel x exclusive, y max pixel y exclusive
+float4 _PlantDynamicInteractionFieldParams; // x center x, y center z, z coverage, w enabled
+float4 _PlantDynamicInteractionStampParams; // x speed to wake, y source count
+float4 _PlantDynamicInteractionStampRegionParams; // x source index, y min pixel x, z min pixel y
+float4 _PlantDynamicInteractionStampRegionMaxParams; // x max pixel x exclusive, y max pixel y exclusive
 
-struct GrassInteractionSourceData
+struct PlantInteractionSourceData
 {
     float4 positionRadius;
     float4 velocityPush;
@@ -27,7 +27,7 @@ struct GrassInteractionSourceData
     float4 wakeShape;
 };
 
-StructuredBuffer<GrassInteractionSourceData> _GrassDynamicInteractionSources;
+StructuredBuffer<PlantInteractionSourceData> _PlantDynamicInteractionSources;
 
 float Hash12(float2 p)
 {
@@ -125,17 +125,17 @@ void Stamp(uint3 id : SV_DispatchThreadID)
     }
 
     float2 uv = (float2(id.xy) + 0.5) / float2(width, height);
-    float coverage = max(_GrassDynamicInteractionFieldParams.z, 0.001);
-    float2 fieldCenter = _GrassDynamicInteractionFieldParams.xy;
+    float coverage = max(_PlantDynamicInteractionFieldParams.z, 0.001);
+    float2 fieldCenter = _PlantDynamicInteractionFieldParams.xy;
     float2 worldXZ = (uv - 0.5) * coverage + fieldCenter;
 
-    int sourceCount = min((int)_GrassDynamicInteractionStampParams.y, 512);
+    int sourceCount = min((int)_PlantDynamicInteractionStampParams.y, 512);
     float4 accumulatedForce = float4(0.0, 0.0, 0.0, 0.0);
 
     [loop]
     for (int sourceIndex = 0; sourceIndex < sourceCount; sourceIndex++)
     {
-        GrassInteractionSourceData source = _GrassDynamicInteractionSources[sourceIndex];
+        PlantInteractionSourceData source = _PlantDynamicInteractionSources[sourceIndex];
 
         float2 sourceXZ = source.positionRadius.xz;
         float2 toPoint = worldXZ - sourceXZ;
@@ -159,7 +159,7 @@ void Stamp(uint3 id : SV_DispatchThreadID)
             float behind = dot(toPoint, -direction);
             float side = abs(dot(toPoint, sideDirection));
             float wakeLength = source.response.z;
-            float speed01 = saturate(speed * _GrassDynamicInteractionStampParams.x);
+            float speed01 = saturate(speed * _PlantDynamicInteractionStampParams.x);
 
             float wakeProgress = saturate(behind / max(wakeLength, 0.001));
             float coneStart = min(saturate(source.wakeShape.w), 0.999);
@@ -192,8 +192,8 @@ void StampSourceRegion(uint3 id : SV_DispatchThreadID)
     uint height;
     _ForceMapWrite.GetDimensions(width, height);
 
-    int2 minPixel = int2(_GrassDynamicInteractionStampRegionParams.yz);
-    int2 maxPixel = int2(_GrassDynamicInteractionStampRegionMaxParams.xy);
+    int2 minPixel = int2(_PlantDynamicInteractionStampRegionParams.yz);
+    int2 maxPixel = int2(_PlantDynamicInteractionStampRegionMaxParams.xy);
     int2 pixel = minPixel + int2(id.xy);
 
     if (pixel.x >= maxPixel.x || pixel.y >= maxPixel.y || pixel.x < 0 || pixel.y < 0 || pixel.x >= (int)width || pixel.y >= (int)height)
@@ -202,12 +202,12 @@ void StampSourceRegion(uint3 id : SV_DispatchThreadID)
     }
 
     float2 uv = (float2(pixel) + 0.5) / float2(width, height);
-    float coverage = max(_GrassDynamicInteractionFieldParams.z, 0.001);
-    float2 fieldCenter = _GrassDynamicInteractionFieldParams.xy;
+    float coverage = max(_PlantDynamicInteractionFieldParams.z, 0.001);
+    float2 fieldCenter = _PlantDynamicInteractionFieldParams.xy;
     float2 worldXZ = (uv - 0.5) * coverage + fieldCenter;
 
-    int sourceIndex = (int)_GrassDynamicInteractionStampRegionParams.x;
-    GrassInteractionSourceData source = _GrassDynamicInteractionSources[sourceIndex];
+    int sourceIndex = (int)_PlantDynamicInteractionStampRegionParams.x;
+    PlantInteractionSourceData source = _PlantDynamicInteractionSources[sourceIndex];
 
     float2 sourceXZ = source.positionRadius.xz;
     float2 toPoint = worldXZ - sourceXZ;
@@ -231,7 +231,7 @@ void StampSourceRegion(uint3 id : SV_DispatchThreadID)
         float behind = dot(toPoint, -direction);
         float side = abs(dot(toPoint, sideDirection));
         float wakeLength = source.response.z;
-        float speed01 = saturate(speed * _GrassDynamicInteractionStampParams.x);
+        float speed01 = saturate(speed * _PlantDynamicInteractionStampParams.x);
 
         float wakeProgress = saturate(behind / max(wakeLength, 0.001));
         float coneStart = min(saturate(source.wakeShape.w), 0.999);

@@ -23,11 +23,11 @@ Shader "Custom/Vit/Plant_URP"
         [NoScaleOffset] _WindTexture ("Wind Noise", 2D) = "gray" {}
         _WindSpeed ("Lean", Range(0,10)) = 10
         _WindDirection ("Wind Direction XZ", Vector) = (0.4472136,0.8944272,0,0)
-        [Toggle] _EnableGrassConeShape ("Enable Grass Cone Shape", Float) = 0
-        _GrassConeTipScale ("Grass Cone Tip Scale", Range(0.25,4)) = 1.5
-        [Toggle] _EnableGrassShadowNoise ("Enable Wind Noise", Float) = 1
-        _GrassShadowNoiseStrength ("Wind Noise Shadow Strength", Range(0,1)) = 0.5
-        _GrassShadowNoiseContrast ("Wind Noise Shadow Contrast", Range(0.1,4)) = 3
+        [Toggle] _EnablePlantConeShape ("Enable Plant Cone Shape", Float) = 0
+        _PlantConeTipScale ("Plant Cone Tip Scale", Range(0.25,4)) = 1.5
+        [Toggle] _EnablePlantShadowNoise ("Enable Wind Noise", Float) = 1
+        _PlantShadowNoiseStrength ("Wind Noise Shadow Strength", Range(0,1)) = 0.5
+        _PlantShadowNoiseContrast ("Wind Noise Shadow Contrast", Range(0.1,4)) = 3
 
         [Toggle] _EnableWaveShape ("Enable Wind Vibrate", Float) = 1
         [HideInInspector] _WaveFrequency ("Wave Frequency", Range(0.1,12)) = 12
@@ -72,7 +72,7 @@ Shader "Custom/Vit/Plant_URP"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
         #include "Includes/SG_PlantCommon.hlsl"
-        #include "../Grass/SG_GrassShape.hlsl"
+        #include "SG_PlantShape.hlsl"
         #include "Includes/SG_PlantWind.hlsl"
         #include "Includes/SG_PlantDynamicInteraction.hlsl"
         #include "Includes/SG_PlantTerrainBlend.hlsl"
@@ -81,7 +81,7 @@ Shader "Custom/Vit/Plant_URP"
         float3 ApplyPlantMotion(float3 worldPos, float bladeMask)
         {
             float3 animatedWorldPos = ApplyWind(worldPos, bladeMask);
-            return ApplyDynamicGrassInteraction(animatedWorldPos, bladeMask);
+            return ApplyDynamicPlantInteraction(animatedWorldPos, bladeMask);
         }
 
         struct PlantDepthAttributes
@@ -118,7 +118,7 @@ Shader "Custom/Vit/Plant_URP"
         float3 GetShapedPlantObjectPos(float3 positionOS, float2 uv)
         {
             float bladeMask = GetBladeMaskFromUV(uv.y);
-            return ApplyGrassConeShapeOS(positionOS, bladeMask);
+            return ApplyPlantConeShapeOS(positionOS, bladeMask);
         }
 
         float3 GetAnimatedPlantWorldPos(float4 positionOS, float2 uv)
@@ -132,7 +132,7 @@ Shader "Custom/Vit/Plant_URP"
         PlantSurfaceSample SamplePlantSurface(float2 uv)
         {
             PlantSurfaceSample sample;
-            sample.baseTex = SampleGrassSourceBaseMap(uv);
+            sample.baseTex = SamplePlantSourceBaseMap(uv);
             sample.baseAlpha = sample.baseTex.a * _BaseColor.a;
             return sample;
         }
@@ -305,8 +305,8 @@ Shader "Custom/Vit/Plant_URP"
                 color *= lerp(float3(1.0, 1.0, 1.0), GetDistanceTint(input.worldPos), colorEnabled);
                 color *= lerp(float3(1.0, 1.0, 1.0), GetHeightTint(input.bladeMask), colorEnabled);
                 color = ApplyTerrainBlend(color, input.worldPos);
-                color *= GetGrassShadowNoiseAttenuation(input.shadowWorldPos);
-                color = ApplyDynamicGrassInteractionDebugTint(color, input.shadowWorldPos, input.bladeMask);
+                color *= GetPlantShadowNoiseAttenuation(input.shadowWorldPos);
+                color = ApplyDynamicPlantInteractionDebugTint(color, input.shadowWorldPos, input.bladeMask);
 
                 if (GetToggle01(_EnableLighting) < 0.5)
                 {

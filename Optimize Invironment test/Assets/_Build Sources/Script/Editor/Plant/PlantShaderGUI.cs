@@ -7,7 +7,7 @@ using UnityEngine;
 public sealed class PlantShaderGUI : ShaderGUI
 {
     private static bool s_ShowCommon = true;
-    private static bool s_ShowGrassShape = true;
+    private static bool s_ShowPlantShape = true;
     private static bool s_ShowLighting = true;
     private static bool s_ShowWind = true;
     private static bool s_ShowWindVibrate = true;
@@ -54,11 +54,11 @@ public sealed class PlantShaderGUI : ShaderGUI
         MaterialProperty waveTipInfluence = Find("_WaveTipInfluence", properties);
         MaterialProperty waveLateralInfluence = Find("_WaveLateralInfluence", properties);
 
-        MaterialProperty enableGrassConeShape = Find("_EnableGrassConeShape", properties);
-        MaterialProperty grassConeTipScale = Find("_GrassConeTipScale", properties);
-        MaterialProperty enableGrassShadowNoise = Find("_EnableGrassShadowNoise", properties);
-        MaterialProperty grassShadowNoiseStrength = Find("_GrassShadowNoiseStrength", properties);
-        MaterialProperty grassShadowNoiseContrast = Find("_GrassShadowNoiseContrast", properties);
+        MaterialProperty enablePlantConeShape = Find("_EnablePlantConeShape", properties);
+        MaterialProperty plantConeTipScale = Find("_PlantConeTipScale", properties);
+        MaterialProperty enablePlantShadowNoise = Find("_EnablePlantShadowNoise", properties);
+        MaterialProperty plantShadowNoiseStrength = Find("_PlantShadowNoiseStrength", properties);
+        MaterialProperty plantShadowNoiseContrast = Find("_PlantShadowNoiseContrast", properties);
 
         MaterialProperty nearColor = Find("_NearColor", properties);
         MaterialProperty farColor = Find("_FarColor", properties);
@@ -109,13 +109,13 @@ public sealed class PlantShaderGUI : ShaderGUI
             waveBodyInfluence,
             waveTipInfluence,
             waveLateralInfluence,
-            enableGrassShadowNoise,
+            enablePlantShadowNoise,
             ref s_ShowWindNoise,
-            grassShadowNoiseStrength,
-            grassShadowNoiseContrast);
+            plantShadowNoiseStrength,
+            plantShadowNoiseContrast);
 
         DrawTerrain(materialEditor, ref s_ShowTerrain, enableTerrain, useTerrainColor, terrainColor, terrainBlendStrength);
-        DrawGrassShape(materialEditor, ref s_ShowGrassShape, enableGrassConeShape, grassConeTipScale);
+        DrawPlantShape(materialEditor, ref s_ShowPlantShape, enablePlantConeShape, plantConeTipScale);
         DrawBakeTools(materialEditor);
         NormalizeCutoutRenderState(materialEditor.targets);
     }
@@ -147,16 +147,16 @@ public sealed class PlantShaderGUI : ShaderGUI
         EditorGUILayout.EndFoldoutHeaderGroup();
     }
 
-    private static void DrawGrassShape(
+    private static void DrawPlantShape(
         MaterialEditor materialEditor,
         ref bool foldout,
-        MaterialProperty enableGrassConeShape,
-        MaterialProperty grassConeTipScale)
+        MaterialProperty enablePlantConeShape,
+        MaterialProperty plantConeTipScale)
     {
         bool shapeEnabled = DrawToggleFoldoutHeader(
             ref foldout,
-            enableGrassConeShape,
-            MakeLabel("Grass Shape", "Bat hoac tat shape mo rong dan theo chieu cao cho grass."));
+            enablePlantConeShape,
+            MakeLabel("Plant Shape", "Bat hoac tat shape mo rong dan theo chieu cao cho plant."));
         if (!foldout)
         {
             return;
@@ -165,7 +165,7 @@ public sealed class PlantShaderGUI : ShaderGUI
         EditorGUI.indentLevel++;
         EditorGUI.BeginDisabledGroup(!shapeEnabled);
         materialEditor.ShaderProperty(
-            grassConeTipScale,
+            plantConeTipScale,
             MakeLabel("Tip Scale", "Scale ngang tai ngon. Gia tri lon hon 1 se mo rong phan ngon."));
         EditorGUI.EndDisabledGroup();
         EditorGUI.indentLevel--;
@@ -273,10 +273,10 @@ public sealed class PlantShaderGUI : ShaderGUI
         MaterialProperty waveBodyInfluence,
         MaterialProperty waveTipInfluence,
         MaterialProperty waveLateralInfluence,
-        MaterialProperty enableGrassShadowNoise,
+        MaterialProperty enablePlantShadowNoise,
         ref bool showWindNoise,
-        MaterialProperty grassShadowNoiseStrength,
-        MaterialProperty grassShadowNoiseContrast)
+        MaterialProperty plantShadowNoiseStrength,
+        MaterialProperty plantShadowNoiseContrast)
     {
         bool windEnabled = DrawToggleFoldoutHeader(
             ref foldout,
@@ -325,15 +325,15 @@ public sealed class PlantShaderGUI : ShaderGUI
         EditorGUILayout.Space(2);
         bool windNoiseEnabled = DrawToggleFoldoutHeader(
             ref showWindNoise,
-            enableGrassShadowNoise,
-            MakeLabel("Wind Noise", "Bat hoac tat cac mang bong chay tren mat grass tu truong noise cua gio."),
+            enablePlantShadowNoise,
+            MakeLabel("Wind Noise", "Bat hoac tat cac mang bong chay tren mat plant tu truong noise cua gio."),
             windEnabled);
         if (showWindNoise)
         {
             EditorGUI.indentLevel++;
             EditorGUI.BeginDisabledGroup(!windEnabled || !windNoiseEnabled);
-            materialEditor.ShaderProperty(grassShadowNoiseStrength, MakeLabel("Strength", "Muc do wind noise lam toi mau co."));
-            materialEditor.ShaderProperty(grassShadowNoiseContrast, MakeLabel("Contrast", "Do net giua vung shadow va vung sang."));
+            materialEditor.ShaderProperty(plantShadowNoiseStrength, MakeLabel("Strength", "Muc do wind noise lam toi mau co."));
+            materialEditor.ShaderProperty(plantShadowNoiseContrast, MakeLabel("Contrast", "Do net giua vung shadow va vung sang."));
             EditorGUI.EndDisabledGroup();
             EditorGUI.indentLevel--;
         }

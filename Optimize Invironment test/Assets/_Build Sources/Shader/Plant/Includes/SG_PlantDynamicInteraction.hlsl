@@ -1,25 +1,25 @@
 #ifndef SG_PLANT_DYNAMIC_INTERACTION_INCLUDED
 #define SG_PLANT_DYNAMIC_INTERACTION_INCLUDED
 
-TEXTURE2D(_GrassDynamicInteractionStateMap);
-SAMPLER(sampler_GrassDynamicInteractionStateMap);
-TEXTURE2D(_GrassDynamicInteractionFlattenMap);
-SAMPLER(sampler_GrassDynamicInteractionFlattenMap);
+TEXTURE2D(_PlantDynamicInteractionStateMap);
+SAMPLER(sampler_PlantDynamicInteractionStateMap);
+TEXTURE2D(_PlantDynamicInteractionFlattenMap);
+SAMPLER(sampler_PlantDynamicInteractionFlattenMap);
 
-float4 _GrassDynamicInteractionFieldParams;
-float4 _GrassDynamicInteractionRenderParams;
-float4 _GrassDynamicInteractionDebugColor;
-float4 _GrassDynamicInteractionDebugParams; // x enabled, y tint strength, z bend sensitivity, w flatten sensitivity
+float4 _PlantDynamicInteractionFieldParams;
+float4 _PlantDynamicInteractionRenderParams;
+float4 _PlantDynamicInteractionDebugColor;
+float4 _PlantDynamicInteractionDebugParams; // x enabled, y tint strength, z bend sensitivity, w flatten sensitivity
 
 float2 GetDynamicInteractionUV(float3 worldPos)
 {
-    float coverage = max(_GrassDynamicInteractionFieldParams.z, 0.001);
-    return ((worldPos.xz - _GrassDynamicInteractionFieldParams.xy) / coverage) + 0.5;
+    float coverage = max(_PlantDynamicInteractionFieldParams.z, 0.001);
+    return ((worldPos.xz - _PlantDynamicInteractionFieldParams.xy) / coverage) + 0.5;
 }
 
-float3 ApplyDynamicGrassInteraction(float3 worldPos, float bladeMask)
+float3 ApplyDynamicPlantInteraction(float3 worldPos, float bladeMask)
 {
-    if (_GrassDynamicInteractionFieldParams.w < 0.5)
+    if (_PlantDynamicInteractionFieldParams.w < 0.5)
     {
         return worldPos;
     }
@@ -37,19 +37,19 @@ float3 ApplyDynamicGrassInteraction(float3 worldPos, float bladeMask)
         return worldPos;
     }
 
-    float4 state = SAMPLE_TEXTURE2D_LOD(_GrassDynamicInteractionStateMap, sampler_GrassDynamicInteractionStateMap, uv, 0);
-    float2 bend = state.rg * _GrassDynamicInteractionRenderParams.x;
-    float flatten = SAMPLE_TEXTURE2D_LOD(_GrassDynamicInteractionFlattenMap, sampler_GrassDynamicInteractionFlattenMap, uv, 0).r;
-    flatten *= _GrassDynamicInteractionRenderParams.y;
+    float4 state = SAMPLE_TEXTURE2D_LOD(_PlantDynamicInteractionStateMap, sampler_PlantDynamicInteractionStateMap, uv, 0);
+    float2 bend = state.rg * _PlantDynamicInteractionRenderParams.x;
+    float flatten = SAMPLE_TEXTURE2D_LOD(_PlantDynamicInteractionFlattenMap, sampler_PlantDynamicInteractionFlattenMap, uv, 0).r;
+    flatten *= _PlantDynamicInteractionRenderParams.y;
 
     worldPos.xz += bend * tipInfluence;
     worldPos.y -= flatten * tipInfluence;
     return worldPos;
 }
 
-float GetDynamicGrassInteractionAmount(float3 worldPos)
+float GetDynamicPlantInteractionAmount(float3 worldPos)
 {
-    if (_GrassDynamicInteractionFieldParams.w < 0.5 || _GrassDynamicInteractionDebugParams.x < 0.5)
+    if (_PlantDynamicInteractionFieldParams.w < 0.5 || _PlantDynamicInteractionDebugParams.x < 0.5)
     {
         return 0.0;
     }
@@ -60,18 +60,18 @@ float GetDynamicGrassInteractionAmount(float3 worldPos)
         return 0.0;
     }
 
-    float4 state = SAMPLE_TEXTURE2D_LOD(_GrassDynamicInteractionStateMap, sampler_GrassDynamicInteractionStateMap, uv, 0);
-    float flatten = SAMPLE_TEXTURE2D_LOD(_GrassDynamicInteractionFlattenMap, sampler_GrassDynamicInteractionFlattenMap, uv, 0).r;
-    float amount = length(state.rg) * _GrassDynamicInteractionDebugParams.z + flatten * _GrassDynamicInteractionDebugParams.w;
+    float4 state = SAMPLE_TEXTURE2D_LOD(_PlantDynamicInteractionStateMap, sampler_PlantDynamicInteractionStateMap, uv, 0);
+    float flatten = SAMPLE_TEXTURE2D_LOD(_PlantDynamicInteractionFlattenMap, sampler_PlantDynamicInteractionFlattenMap, uv, 0).r;
+    float amount = length(state.rg) * _PlantDynamicInteractionDebugParams.z + flatten * _PlantDynamicInteractionDebugParams.w;
     return saturate(amount);
 }
 
-float3 ApplyDynamicGrassInteractionDebugTint(float3 color, float3 worldPos, float bladeMask)
+float3 ApplyDynamicPlantInteractionDebugTint(float3 color, float3 worldPos, float bladeMask)
 {
-    float amount = GetDynamicGrassInteractionAmount(worldPos);
+    float amount = GetDynamicPlantInteractionAmount(worldPos);
     float bladeVisibility = lerp(0.45, 1.0, saturate(bladeMask));
-    float tint = saturate(amount * _GrassDynamicInteractionDebugParams.y * bladeVisibility);
-    return lerp(color, _GrassDynamicInteractionDebugColor.rgb, tint);
+    float tint = saturate(amount * _PlantDynamicInteractionDebugParams.y * bladeVisibility);
+    return lerp(color, _PlantDynamicInteractionDebugColor.rgb, tint);
 }
 
 #endif

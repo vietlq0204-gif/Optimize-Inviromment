@@ -1,4 +1,4 @@
-Shader "Hidden/Vit/DynamicGrassInteractionStamp"
+Shader "Hidden/Vit/DynamicPlantInteractionStamp"
 {
     SubShader
     {
@@ -16,7 +16,7 @@ Shader "Hidden/Vit/DynamicGrassInteractionStamp"
             #pragma vertex Vert
             #pragma fragment Frag
 
-            struct GrassInteractionSourceData
+            struct PlantInteractionSourceData
             {
                 float4 positionRadius;
                 float4 velocityPush;
@@ -24,9 +24,9 @@ Shader "Hidden/Vit/DynamicGrassInteractionStamp"
                 float4 wakeShape;
             };
 
-            StructuredBuffer<GrassInteractionSourceData> _GrassDynamicInteractionSources;
-            float4 _GrassDynamicInteractionFieldParams; // x center x, y center z, z coverage, w enabled
-            float4 _GrassDynamicInteractionStampParams; // x speed to wake, y source count
+            StructuredBuffer<PlantInteractionSourceData> _PlantDynamicInteractionSources;
+            float4 _PlantDynamicInteractionFieldParams; // x center x, y center z, z coverage, w enabled
+            float4 _PlantDynamicInteractionStampParams; // x speed to wake, y source count
 
             struct Varyings
             {
@@ -47,7 +47,7 @@ Shader "Hidden/Vit/DynamicGrassInteractionStamp"
 
             Varyings Vert(uint vertexID : SV_VertexID, uint instanceID : SV_InstanceID)
             {
-                GrassInteractionSourceData source = _GrassDynamicInteractionSources[instanceID];
+                PlantInteractionSourceData source = _PlantDynamicInteractionSources[instanceID];
 
                 float2 velocityXZ = source.velocityPush.xz;
                 float speed = length(velocityXZ);
@@ -62,8 +62,8 @@ Shader "Hidden/Vit/DynamicGrassInteractionStamp"
                 float2 corner = GetQuadCorner(vertexID);
 
                 float2 worldXZ = footprintCenter + sideDirection * corner.x * footprintSide + direction * corner.y * footprintAlong;
-                float coverage = max(_GrassDynamicInteractionFieldParams.z, 0.001);
-                float2 fieldCenter = _GrassDynamicInteractionFieldParams.xy;
+                float coverage = max(_PlantDynamicInteractionFieldParams.z, 0.001);
+                float2 fieldCenter = _PlantDynamicInteractionFieldParams.xy;
                 float2 uv = ((worldXZ - fieldCenter) / coverage) + 0.5;
                 float2 clipPosition = uv * 2.0 - 1.0;
                 clipPosition.x = -clipPosition.x;
@@ -77,7 +77,7 @@ Shader "Hidden/Vit/DynamicGrassInteractionStamp"
 
             half4 Frag(Varyings input) : SV_Target
             {
-                GrassInteractionSourceData source = _GrassDynamicInteractionSources[input.sourceIndex];
+                PlantInteractionSourceData source = _PlantDynamicInteractionSources[input.sourceIndex];
 
                 float2 sourceXZ = source.positionRadius.xz;
                 float2 toPoint = input.worldXZ - sourceXZ;
@@ -101,7 +101,7 @@ Shader "Hidden/Vit/DynamicGrassInteractionStamp"
                     float behind = dot(toPoint, -direction);
                     float side = abs(dot(toPoint, sideDirection));
                     float wakeLength = source.response.z;
-                    float speed01 = saturate(speed * _GrassDynamicInteractionStampParams.x);
+                    float speed01 = saturate(speed * _PlantDynamicInteractionStampParams.x);
 
                     float wakeProgress = saturate(behind / max(wakeLength, 0.001));
                     float coneStart = min(saturate(source.wakeShape.w), 0.999);

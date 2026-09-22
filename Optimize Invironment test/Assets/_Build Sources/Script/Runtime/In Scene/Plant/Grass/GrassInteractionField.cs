@@ -10,18 +10,18 @@ using UnityEditor;
 
 [ExecuteAlways]
 [DisallowMultipleComponent]
-[AddComponentMenu("Grass/Dynamic Grass Interaction Field")]
+[AddComponentMenu("Plant/Dynamic Plant Interaction Field")]
 public sealed class GrassInteractionField : MonoBehaviour
 {
     private const int ThreadGroupSize = 8;
     private const int SourceStride = sizeof(float) * 16;
 
-    private static readonly int StateMapId = Shader.PropertyToID("_GrassDynamicInteractionStateMap");
-    private static readonly int FlattenMapId = Shader.PropertyToID("_GrassDynamicInteractionFlattenMap");
-    private static readonly int FieldParamsId = Shader.PropertyToID("_GrassDynamicInteractionFieldParams");
-    private static readonly int RenderParamsId = Shader.PropertyToID("_GrassDynamicInteractionRenderParams");
-    private static readonly int StampSourcesId = Shader.PropertyToID("_GrassDynamicInteractionSources");
-    private static readonly int StampParamsId = Shader.PropertyToID("_GrassDynamicInteractionStampParams");
+    private static readonly int StateMapId = Shader.PropertyToID("_PlantDynamicInteractionStateMap");
+    private static readonly int FlattenMapId = Shader.PropertyToID("_PlantDynamicInteractionFlattenMap");
+    private static readonly int FieldParamsId = Shader.PropertyToID("_PlantDynamicInteractionFieldParams");
+    private static readonly int RenderParamsId = Shader.PropertyToID("_PlantDynamicInteractionRenderParams");
+    private static readonly int StampSourcesId = Shader.PropertyToID("_PlantDynamicInteractionSources");
+    private static readonly int StampParamsId = Shader.PropertyToID("_PlantDynamicInteractionStampParams");
     private static readonly int ForceMapId = Shader.PropertyToID("_ForceMap");
     private static readonly int ForceMapWriteId = Shader.PropertyToID("_ForceMapWrite");
     private static readonly int StateReadId = Shader.PropertyToID("_StateRead");
@@ -32,10 +32,10 @@ public sealed class GrassInteractionField : MonoBehaviour
     private static readonly int LimitParamsId = Shader.PropertyToID("_LimitParams");
     private static readonly int TurbulenceParamsId = Shader.PropertyToID("_TurbulenceParams");
     private static readonly int RecenterParamsId = Shader.PropertyToID("_RecenterParams");
-    private static readonly int StampRegionParamsId = Shader.PropertyToID("_GrassDynamicInteractionStampRegionParams");
-    private static readonly int StampRegionMaxParamsId = Shader.PropertyToID("_GrassDynamicInteractionStampRegionMaxParams");
-    private static readonly int DebugColorId = Shader.PropertyToID("_GrassDynamicInteractionDebugColor");
-    private static readonly int DebugParamsId = Shader.PropertyToID("_GrassDynamicInteractionDebugParams");
+    private static readonly int StampRegionParamsId = Shader.PropertyToID("_PlantDynamicInteractionStampRegionParams");
+    private static readonly int StampRegionMaxParamsId = Shader.PropertyToID("_PlantDynamicInteractionStampRegionMaxParams");
+    private static readonly int DebugColorId = Shader.PropertyToID("_PlantDynamicInteractionDebugColor");
+    private static readonly int DebugParamsId = Shader.PropertyToID("_PlantDynamicInteractionDebugParams");
 
     [Header("Follow")]
     [Tooltip("Tâm của vùng mô phỏng cỏ. Thường đặt là Player để chỉ mô phỏng cỏ quanh người chơi. Vật thể tương tác ở ngoài vùng Coverage sẽ không ảnh hưởng cỏ.")]
@@ -171,8 +171,8 @@ public sealed class GrassInteractionField : MonoBehaviour
     private void Reset()
     {
 #if UNITY_EDITOR
-        simulationShader = FindDefaultComputeShader("CS_DynamicGrassInteraction");
-        stampShader = Shader.Find("Hidden/Vit/DynamicGrassInteractionStamp");
+        simulationShader = FindDefaultComputeShader("CS_DynamicPlantInteraction");
+        stampShader = Shader.Find("Hidden/Vit/DynamicPlantInteractionStamp");
 #endif
     }
 
@@ -226,12 +226,12 @@ public sealed class GrassInteractionField : MonoBehaviour
 #if UNITY_EDITOR
         if (simulationShader == null)
         {
-            simulationShader = FindDefaultComputeShader("CS_DynamicGrassInteraction");
+            simulationShader = FindDefaultComputeShader("CS_DynamicPlantInteraction");
         }
 
         if (stampShader == null)
         {
-            stampShader = Shader.Find("Hidden/Vit/DynamicGrassInteractionStamp");
+            stampShader = Shader.Find("Hidden/Vit/DynamicPlantInteractionStamp");
         }
 #endif
 
@@ -321,11 +321,11 @@ public sealed class GrassInteractionField : MonoBehaviour
         GraphicsFormat vectorFormat = SelectFormat(GraphicsFormat.R16G16B16A16_SFloat, GraphicsFormat.R32G32B32A32_SFloat);
         GraphicsFormat flattenFormat = SelectFormat(GraphicsFormat.R16G16_SFloat, GraphicsFormat.R32G32_SFloat);
 
-        forceMap = EnsureRenderTexture(forceMap, vectorFormat, "GrassInteractionForce");
-        stateA = EnsureRenderTexture(stateA, vectorFormat, "GrassInteractionStateA");
-        stateB = EnsureRenderTexture(stateB, vectorFormat, "GrassInteractionStateB");
-        flattenA = EnsureRenderTexture(flattenA, flattenFormat, "GrassInteractionFlattenA");
-        flattenB = EnsureRenderTexture(flattenB, flattenFormat, "GrassInteractionFlattenB");
+        forceMap = EnsureRenderTexture(forceMap, vectorFormat, "PlantInteractionForce");
+        stateA = EnsureRenderTexture(stateA, vectorFormat, "PlantInteractionStateA");
+        stateB = EnsureRenderTexture(stateB, vectorFormat, "PlantInteractionStateB");
+        flattenA = EnsureRenderTexture(flattenA, flattenFormat, "PlantInteractionFlattenA");
+        flattenB = EnsureRenderTexture(flattenB, flattenFormat, "PlantInteractionFlattenB");
         return true;
     }
 

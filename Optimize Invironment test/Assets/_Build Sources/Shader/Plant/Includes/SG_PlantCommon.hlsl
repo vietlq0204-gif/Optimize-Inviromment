@@ -25,11 +25,11 @@ CBUFFER_START(UnityPerMaterial)
     float _EnableWind;
     float _WindSpeed;
     float4 _WindDirection;
-    float _EnableGrassConeShape;
-    float _GrassConeTipScale;
-    float _EnableGrassShadowNoise;
-    float _GrassShadowNoiseStrength;
-    float _GrassShadowNoiseContrast;
+    float _EnablePlantConeShape;
+    float _PlantConeTipScale;
+    float _EnablePlantShadowNoise;
+    float _PlantShadowNoiseStrength;
+    float _PlantShadowNoiseContrast;
     float _EnableWaveShape;
     float _WaveFrequency;
     float _WaveSpacingVariation;
