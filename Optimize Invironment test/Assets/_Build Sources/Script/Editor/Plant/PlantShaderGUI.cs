@@ -12,6 +12,7 @@ public sealed class PlantShaderGUI : ShaderGUI
     private static bool s_ShowWind = true;
     private static bool s_ShowWindVibrate = true;
     private static bool s_ShowWindNoise = true;
+    private static bool s_ShowInteraction = true;
     private static bool s_ShowColor = true;
     private static bool s_ShowTerrain = true;
     private const int TransparentRenderQueue = 3000;
@@ -45,6 +46,7 @@ public sealed class PlantShaderGUI : ShaderGUI
         MaterialProperty windTextureInfluence = Find("_WindTextureInfluence", properties);
         MaterialProperty windTextureWaveInfluence = Find("_WindTextureWaveInfluence", properties);
 
+        MaterialProperty enablePlantInteraction = Find("_EnablePlantInteraction", properties);
         MaterialProperty enableWaveShape = Find("_EnableWaveShape", properties);
         MaterialProperty waveFrequency = Find("_WaveFrequency", properties);
         MaterialProperty waveSpacingVariation = Find("_WaveSpacingVariation", properties);
@@ -115,6 +117,7 @@ public sealed class PlantShaderGUI : ShaderGUI
             plantShadowNoiseContrast);
 
         DrawTerrain(materialEditor, ref s_ShowTerrain, enableTerrain, useTerrainColor, terrainColor, terrainBlendStrength);
+        DrawInteraction(ref s_ShowInteraction, enablePlantInteraction);
         DrawPlantShape(materialEditor, ref s_ShowPlantShape, enablePlantConeShape, plantConeTipScale);
         DrawBakeTools(materialEditor);
         NormalizeCutoutRenderState(materialEditor.targets);
@@ -168,6 +171,27 @@ public sealed class PlantShaderGUI : ShaderGUI
             plantConeTipScale,
             MakeLabel("Tip Scale", "Scale ngang tai ngon. Gia tri lon hon 1 se mo rong phan ngon."));
         EditorGUI.EndDisabledGroup();
+        EditorGUI.indentLevel--;
+        EditorGUILayout.Space(2);
+    }
+
+    private static void DrawInteraction(
+        ref bool foldout,
+        MaterialProperty enablePlantInteraction)
+    {
+        DrawToggleFoldoutHeader(
+            ref foldout,
+            enablePlantInteraction,
+            MakeLabel("Interaction", "Bat hoac tat hieu ung plant bi tac dong boi PlantInteractionField."));
+        if (!foldout)
+        {
+            return;
+        }
+
+        EditorGUI.indentLevel++;
+        EditorGUILayout.HelpBox(
+            "Tat tuy chon nay neu material khong can bend, flatten hoac debug tint tu interaction field.",
+            MessageType.None);
         EditorGUI.indentLevel--;
         EditorGUILayout.Space(2);
     }

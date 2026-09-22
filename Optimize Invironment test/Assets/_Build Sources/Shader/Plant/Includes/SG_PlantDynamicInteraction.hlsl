@@ -19,7 +19,7 @@ float2 GetDynamicInteractionUV(float3 worldPos)
 
 float3 ApplyDynamicPlantInteraction(float3 worldPos, float bladeMask)
 {
-    if (_PlantDynamicInteractionFieldParams.w < 0.5)
+    if (GetToggle01(_EnablePlantInteraction) < 0.5 || _PlantDynamicInteractionFieldParams.w < 0.5)
     {
         return worldPos;
     }
@@ -49,7 +49,9 @@ float3 ApplyDynamicPlantInteraction(float3 worldPos, float bladeMask)
 
 float GetDynamicPlantInteractionAmount(float3 worldPos)
 {
-    if (_PlantDynamicInteractionFieldParams.w < 0.5 || _PlantDynamicInteractionDebugParams.x < 0.5)
+    if (GetToggle01(_EnablePlantInteraction) < 0.5 ||
+        _PlantDynamicInteractionFieldParams.w < 0.5 ||
+        _PlantDynamicInteractionDebugParams.x < 0.5)
     {
         return 0.0;
     }

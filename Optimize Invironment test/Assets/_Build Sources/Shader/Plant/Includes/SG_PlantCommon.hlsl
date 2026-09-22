@@ -25,6 +25,7 @@ CBUFFER_START(UnityPerMaterial)
     float _EnableWind;
     float _WindSpeed;
     float4 _WindDirection;
+    float _EnablePlantInteraction;
     float _EnablePlantConeShape;
     float _PlantConeTipScale;
     float _EnablePlantShadowNoise;

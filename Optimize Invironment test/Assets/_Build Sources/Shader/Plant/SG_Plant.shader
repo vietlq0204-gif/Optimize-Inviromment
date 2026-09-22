@@ -6,7 +6,7 @@ Shader "Custom/Vit/Plant_URP"
         [HideInInspector] _MainTex ("MainTex", 2D) = "white" {}
         [MainColor] _BaseColor ("Base Color", Color) = (1,1,1,1)
         [Toggle] _EnableColor ("Enable Color", Float) = 0
-        _Cutoff ("Alpha Cutoff", Range(0,1)) = 0.4
+        _Cutoff ("Alpha Cutoff", Range(0,1)) = 0.5
         [Toggle] _EnableLighting ("Enable Lighting", Float) = 0
         [Toggle] _ReceiveShadows ("Receive Shadows", Float) = 1
         _ShadowStrength ("Shadow Strength", Range(0,1)) = 1
@@ -17,12 +17,13 @@ Shader "Custom/Vit/Plant_URP"
         _AdditionalLightIntensity ("Additional Light Intensity", Range(0,4)) = 1
         [Toggle] _EnableAmbient ("Enable Ambient", Float) = 1
         _AmbientIntensity ("Ambient Intensity", Range(0,4)) = 0.5
-        [Toggle] _TwoSidedLighting ("Two-Sided Lighting", Float) = 1
+        [Toggle] _TwoSidedLighting ("Two-Sided Lighting", Float) = 0
 
         [Toggle] _EnableWind ("Enable Wind", Float) = 0
         [NoScaleOffset] _WindTexture ("Wind Noise", 2D) = "gray" {}
         _WindSpeed ("Lean", Range(0,10)) = 10
         _WindDirection ("Wind Direction XZ", Vector) = (0.4472136,0.8944272,0,0)
+        [Toggle] _EnablePlantInteraction ("Enable Plant Interaction", Float) = 0
         [Toggle] _EnablePlantConeShape ("Enable Plant Cone Shape", Float) = 0
         _PlantConeTipScale ("Plant Cone Tip Scale", Range(0.25,4)) = 1.5
         [Toggle] _EnablePlantShadowNoise ("Enable Wind Noise", Float) = 1
