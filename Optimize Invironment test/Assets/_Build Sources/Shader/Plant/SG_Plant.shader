@@ -6,14 +6,14 @@ Shader "Custom/Vit/Plant_URP"
         [HideInInspector] _MainTex ("MainTex", 2D) = "white" {}
         [MainColor] _BaseColor ("Base Color", Color) = (1,1,1,1)
         [Toggle] _EnableColor ("Enable Color", Float) = 0
-        _Cutoff ("Alpha Cutoff", Range(0,1)) = 0.5
+        _Cutoff ("Alpha Cutoff", Range(0,1)) = 0.4
         [Toggle] _EnableLighting ("Enable Lighting", Float) = 0
         [Toggle] _ReceiveShadows ("Receive Shadows", Float) = 1
         _ShadowStrength ("Shadow Strength", Range(0,1)) = 1
         _ShadowFloor ("Shadow Floor", Range(0,1)) = 0.15
         [Toggle] _EnableMainLight ("Enable Main Light", Float) = 1
-        _MainLightIntensity ("Main Light Intensity", Range(0,4)) = 1.2
-        [Toggle] _EnableAdditionalLights ("Enable Additional Lights", Float) = 0
+        _MainLightIntensity ("Main Light Intensity", Range(0,4)) = 1
+        [Toggle] _EnableAdditionalLights ("Enable Additional Lights", Float) = 1
         _AdditionalLightIntensity ("Additional Light Intensity", Range(0,4)) = 1
         [Toggle] _EnableAmbient ("Enable Ambient", Float) = 1
         _AmbientIntensity ("Ambient Intensity", Range(0,4)) = 0.5
@@ -38,14 +38,14 @@ Shader "Custom/Vit/Plant_URP"
         [HideInInspector] _WaveTipInfluence ("Tip Wave", Range(0,1)) = 1
         [HideInInspector] _WaveLateralInfluence ("Lateral Wave", Range(0,1)) = 1
 
-        [HideInInspector] _WindTextureScale ("Wind Noise Scale", Vector) = (40,40,0,0)
-        [HideInInspector] _WindTextureScrollSpeed ("Wind Noise Scroll Speed", Range(0,5)) = 0.2
+        [HideInInspector] _WindTextureScale ("Wind Noise Scale", Vector) = (100,150,0,0)
+        [HideInInspector] _WindTextureScrollSpeed ("Wind Noise Scroll Speed", Range(0,5)) = 0.1
         [HideInInspector] _WindTextureContrast ("Wind Noise Contrast", Vector) = (0.2,0.8,0,0)
         [HideInInspector] _WindTextureInfluence ("Noise To Lean", Range(0,1)) = 1
         [HideInInspector] _WindTextureWaveInfluence ("Noise To Vibrate", Range(0,1)) = 0
 
-        [HideInInspector] _NearColor ("Near Color", Color) = (0.6,0.6,0.6,1)
-        [HideInInspector] _FarColor ("Far Color", Color) = (1,1,1,1)
+        [HideInInspector] _NearColor ("Near Color", Color) = (1,1,1,1)
+        [HideInInspector] _FarColor ("Far Color", Color) = (0.8564891,1,0,1)
         [HideInInspector] _NearFarRange ("Near/Far Range", Vector) = (5,18,0,0)
         [HideInInspector] _BottomColor ("Bottom Color", Color) = (1,1,1,1)
         [HideInInspector] _HeightBlend ("Height Blend", Range(0,20)) = 5
